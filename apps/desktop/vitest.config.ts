@@ -4,6 +4,11 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   test: {
+    include: [
+      'src/**/*.{test,spec}.?(c|m)[jt]s?(x)',
+      'src/**/test/test_*.ts',
+      'src/**/test/test_*.tsx',
+    ],
     // Externalize native modules so vite-node doesn't try to transform them
     server: {
       deps: {
