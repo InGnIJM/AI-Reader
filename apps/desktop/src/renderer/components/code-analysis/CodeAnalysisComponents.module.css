@@ -1,0 +1,110 @@
+.projectSidebar,
+.traceList,
+.annotationList,
+.exportMenu,
+.promptBox {
+  min-width: 0;
+}
+
+.projectSidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.projectSidebar button,
+.promptBox button,
+.exportMenu button,
+.commentComposer button {
+  min-height: 36px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #1e293b;
+  color: #f8fafc;
+  cursor: pointer;
+}
+
+.projectSidebar button:disabled,
+.promptBox button:disabled,
+.exportMenu button:disabled,
+.commentComposer button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.projectName,
+.muted,
+.traceItem span,
+.annotationItem span {
+  color: #94a3b8;
+}
+
+.traceList,
+.annotationList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.traceItem,
+.annotationItem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #111827;
+}
+
+.annotationItem blockquote {
+  margin: 0;
+  color: #facc15;
+}
+
+.emptyDocument {
+  padding: 40px;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.promptBox {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px;
+  gap: 10px;
+}
+
+.promptBox textarea {
+  min-height: 44px;
+  max-height: 120px;
+  resize: vertical;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 10px 12px;
+}
+
+.exportMenu {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.commentComposer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid #334155;
+}
+
+.commentComposer textarea {
+  min-height: 76px;
+  resize: vertical;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 10px;
+}
