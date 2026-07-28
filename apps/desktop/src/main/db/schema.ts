@@ -151,3 +151,65 @@ export const appSettings = sqliteTable('app_settings', {
   value: text('value').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
+
+export const codeProjects = sqliteTable('code_projects', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  rootPath: text('root_path').notNull(),
+  rootPathHash: text('root_path_hash').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+export const analysisDocuments = sqliteTable('analysis_documents', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id')
+    .notNull()
+    .references(() => codeProjects.id, { onDelete: 'cascade' }),
+  goal: text('goal').notNull(),
+  contentMarkdown: text('content_markdown').notNull().default(''),
+  status: text('status').notNull().default('pending'),
+  modelId: text('model_id'),
+  toolCallCount: integer('tool_call_count').notNull().default(0),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+export const analysisToolTraces = sqliteTable('analysis_tool_traces', {
+  id: text('id').primaryKey(),
+  analysisDocumentId: text('analysis_document_id')
+    .notNull()
+    .references(() => analysisDocuments.id, { onDelete: 'cascade' }),
+  stepIndex: integer('step_index').notNull(),
+  toolName: text('tool_name').notNull(),
+  toolArgsJson: text('tool_args_json').notNull(),
+  resultSummary: text('result_summary').notNull(),
+  createdAt: text('created_at').notNull(),
+});
+
+export const analysisAnnotations = sqliteTable('analysis_annotations', {
+  id: text('id').primaryKey(),
+  analysisDocumentId: text('analysis_document_id')
+    .notNull()
+    .references(() => analysisDocuments.id, { onDelete: 'cascade' }),
+  anchorStartOffset: integer('anchor_start_offset').notNull(),
+  anchorEndOffset: integer('anchor_end_offset').notNull(),
+  anchorExactText: text('anchor_exact_text').notNull(),
+  anchorPrefix: text('anchor_prefix').notNull(),
+  anchorSuffix: text('anchor_suffix').notNull(),
+  question: text('question').notNull(),
+  status: text('status').notNull().default('pending'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+export const analysisDiscussionMessages = sqliteTable('analysis_discussion_messages', {
+  id: text('id').primaryKey(),
+  annotationId: text('annotation_id')
+    .notNull()
+    .references(() => analysisAnnotations.id, { onDelete: 'cascade' }),
+  role: text('role').notNull(),
+  content: text('content').notNull(),
+  modelId: text('model_id'),
+  createdAt: text('created_at').notNull(),
+});

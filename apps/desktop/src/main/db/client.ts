@@ -140,6 +140,60 @@ export function createDatabase(dbPath: string): DatabaseClient {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS code_projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      root_path TEXT NOT NULL,
+      root_path_hash TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS analysis_documents (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES code_projects(id) ON DELETE CASCADE,
+      goal TEXT NOT NULL,
+      content_markdown TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending',
+      model_id TEXT,
+      tool_call_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS analysis_tool_traces (
+      id TEXT PRIMARY KEY,
+      analysis_document_id TEXT NOT NULL REFERENCES analysis_documents(id) ON DELETE CASCADE,
+      step_index INTEGER NOT NULL,
+      tool_name TEXT NOT NULL,
+      tool_args_json TEXT NOT NULL,
+      result_summary TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS analysis_annotations (
+      id TEXT PRIMARY KEY,
+      analysis_document_id TEXT NOT NULL REFERENCES analysis_documents(id) ON DELETE CASCADE,
+      anchor_start_offset INTEGER NOT NULL,
+      anchor_end_offset INTEGER NOT NULL,
+      anchor_exact_text TEXT NOT NULL,
+      anchor_prefix TEXT NOT NULL,
+      anchor_suffix TEXT NOT NULL,
+      question TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS analysis_discussion_messages (
+      id TEXT PRIMARY KEY,
+      annotation_id TEXT NOT NULL REFERENCES analysis_annotations(id) ON DELETE CASCADE,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      model_id TEXT,
+      created_at TEXT NOT NULL
+    );
+
     -- 性能索引
     CREATE INDEX IF NOT EXISTS idx_documents_workspace ON documents(workspace_id);
     CREATE INDEX IF NOT EXISTS idx_chapters_document ON chapters(document_id);
@@ -149,6 +203,10 @@ export function createDatabase(dbPath: string): DatabaseClient {
     CREATE INDEX IF NOT EXISTS idx_annotations_article ON annotations(article_id);
     CREATE INDEX IF NOT EXISTS idx_annotations_section ON annotations(section_id);
     CREATE INDEX IF NOT EXISTS idx_discussion_messages_annotation ON discussion_messages(annotation_id);
+    CREATE INDEX IF NOT EXISTS idx_analysis_documents_project ON analysis_documents(project_id);
+    CREATE INDEX IF NOT EXISTS idx_analysis_tool_traces_document ON analysis_tool_traces(analysis_document_id);
+    CREATE INDEX IF NOT EXISTS idx_analysis_annotations_document ON analysis_annotations(analysis_document_id);
+    CREATE INDEX IF NOT EXISTS idx_analysis_discussion_messages_annotation ON analysis_discussion_messages(annotation_id);
   `);
 
   log.info('Database initialized');
