@@ -45,8 +45,9 @@ describe('DocumentParser', () => {
     it('should handle markdown with no headings', () => {
       const md = 'Just some text without headings.\n\nAnother paragraph.';
       const result = parser.parse(md, 'no-headings.md');
-      // No headings means no chapters extracted (content before first heading is ignored)
-      expect(result.chapters).toHaveLength(0);
+      expect(result.chapters).toHaveLength(1);
+      expect(result.chapters[0].title).toBe('no-headings');
+      expect(result.chapters[0].content).toBe(md);
     });
 
     it('should handle markdown with only content before first heading', () => {
