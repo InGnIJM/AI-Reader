@@ -61,6 +61,18 @@ export const IPC_CHANNELS = {
   // ── File Dialog ─────────────────────────────────────────────────────────
   /** 打开文件选择对话框 */
   DIALOG_OPEN_FILE: 'dialog:openFile',
+  DIALOG_OPEN_DIRECTORY: 'dialog:openDirectory',
+
+  CODE_ANALYSIS_CREATE_PROJECT: 'codeAnalysis:createProject',
+  CODE_ANALYSIS_RUN: 'codeAnalysis:run',
+  CODE_ANALYSIS_GET_DOCUMENT: 'codeAnalysis:getDocument',
+  CODE_ANALYSIS_LIST_TRACES: 'codeAnalysis:listTraces',
+  CODE_ANALYSIS_CREATE_ANNOTATION: 'codeAnalysis:createAnnotation',
+  CODE_ANALYSIS_LIST_ANNOTATIONS: 'codeAnalysis:listAnnotations',
+  CODE_ANALYSIS_REPLY_TO_ANNOTATION: 'codeAnalysis:replyToAnnotation',
+  CODE_ANALYSIS_EXPORT_MARKDOWN: 'codeAnalysis:exportMarkdown',
+  CODE_ANALYSIS_EXPORT_JSON: 'codeAnalysis:exportJson',
+  CODE_ANALYSIS_IMPORT_JSON: 'codeAnalysis:importJson',
 } as const;
 
 /** IPC 频道名称联合类型 */

@@ -141,3 +141,77 @@ export interface AnnotationData {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface OpenDirectoryDialogResult {
+  canceled: boolean;
+  filePaths: string[];
+}
+
+export type CodeAnalysisStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type CodeAnalysisAnnotationStatus = 'pending' | 'answered' | 'failed';
+export type CodeAnalysisMessageRole = 'user' | 'assistant';
+
+export interface CodeAnalysisProjectData {
+  id: string;
+  name: string;
+  rootPath?: string;
+  rootPathHash: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CodeAnalysisRunPayload {
+  projectId: string;
+  goal: string;
+}
+
+export interface CodeAnalysisDocumentData {
+  id: string;
+  projectId: string;
+  goal: string;
+  contentMarkdown: string;
+  status: CodeAnalysisStatus;
+  modelId?: string;
+  toolCallCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CodeAnalysisToolTraceData {
+  id?: string;
+  analysisDocumentId?: string;
+  stepIndex?: number;
+  toolName: string;
+  toolArgsJson?: string;
+  resultSummary: string;
+  createdAt?: string;
+}
+
+export interface CodeAnalysisAnnotationCreatePayload {
+  analysisDocumentId: string;
+  selectedText: string;
+  question: string;
+}
+
+export interface CodeAnalysisAnnotationData {
+  id: string;
+  analysisDocumentId: string;
+  anchorStartOffset: number;
+  anchorEndOffset: number;
+  anchorExactText: string;
+  anchorPrefix: string;
+  anchorSuffix: string;
+  question: string;
+  status: CodeAnalysisAnnotationStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CodeAnalysisDiscussionMessageData {
+  id: string;
+  annotationId: string;
+  role: CodeAnalysisMessageRole;
+  content: string;
+  modelId?: string;
+  createdAt: string;
+}
