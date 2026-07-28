@@ -38,6 +38,17 @@ try {
     ANNOTATION_LIST_BY_ARTICLE: 'annotation:listByArticle',
     ANNOTATION_DELETE: 'annotation:delete',
     DIALOG_OPEN_FILE: 'dialog:openFile',
+    DIALOG_OPEN_DIRECTORY: 'dialog:openDirectory',
+    CODE_ANALYSIS_CREATE_PROJECT: 'codeAnalysis:createProject',
+    CODE_ANALYSIS_RUN: 'codeAnalysis:run',
+    CODE_ANALYSIS_GET_DOCUMENT: 'codeAnalysis:getDocument',
+    CODE_ANALYSIS_LIST_TRACES: 'codeAnalysis:listTraces',
+    CODE_ANALYSIS_CREATE_ANNOTATION: 'codeAnalysis:createAnnotation',
+    CODE_ANALYSIS_LIST_ANNOTATIONS: 'codeAnalysis:listAnnotations',
+    CODE_ANALYSIS_REPLY_TO_ANNOTATION: 'codeAnalysis:replyToAnnotation',
+    CODE_ANALYSIS_EXPORT_MARKDOWN: 'codeAnalysis:exportMarkdown',
+    CODE_ANALYSIS_EXPORT_JSON: 'codeAnalysis:exportJson',
+    CODE_ANALYSIS_IMPORT_JSON: 'codeAnalysis:importJson',
   };
 }
 
@@ -54,8 +65,16 @@ import type {
   JobUpdateProgressPayload,
   JobMarkFailedPayload,
   OpenFileDialogResult,
+  OpenDirectoryDialogResult,
   AnnotationCreatePayload,
   AnnotationData,
+  CodeAnalysisAnnotationCreatePayload,
+  CodeAnalysisAnnotationData,
+  CodeAnalysisDiscussionMessageData,
+  CodeAnalysisDocumentData,
+  CodeAnalysisProjectData,
+  CodeAnalysisRunPayload,
+  CodeAnalysisToolTraceData,
 } from '@ai-reader/shared';
 
 /**
@@ -136,6 +155,37 @@ const api = {
   dialog: {
     openFile: () =>
       invoke<OpenFileDialogResult>(IPC_CHANNELS.DIALOG_OPEN_FILE),
+    openDirectory: () =>
+      invoke<OpenDirectoryDialogResult>(IPC_CHANNELS.DIALOG_OPEN_DIRECTORY),
+  },
+
+  codeAnalysis: {
+    createProject: (rootPath: string) =>
+      invoke<CodeAnalysisProjectData>(IPC_CHANNELS.CODE_ANALYSIS_CREATE_PROJECT, rootPath),
+    run: (projectId: string, goal: string) =>
+      invoke<CodeAnalysisDocumentData>(
+        IPC_CHANNELS.CODE_ANALYSIS_RUN,
+        { projectId, goal } satisfies CodeAnalysisRunPayload,
+      ),
+    getDocument: (id: string) =>
+      invoke<CodeAnalysisDocumentData | null>(IPC_CHANNELS.CODE_ANALYSIS_GET_DOCUMENT, id),
+    listTraces: (documentId: string) =>
+      invoke<CodeAnalysisToolTraceData[]>(IPC_CHANNELS.CODE_ANALYSIS_LIST_TRACES, documentId),
+    createAnnotation: (payload: CodeAnalysisAnnotationCreatePayload) =>
+      invoke<CodeAnalysisAnnotationData>(IPC_CHANNELS.CODE_ANALYSIS_CREATE_ANNOTATION, payload),
+    listAnnotations: (documentId: string) =>
+      invoke<CodeAnalysisAnnotationData[]>(IPC_CHANNELS.CODE_ANALYSIS_LIST_ANNOTATIONS, documentId),
+    replyToAnnotation: (annotationId: string) =>
+      invoke<CodeAnalysisDiscussionMessageData[]>(
+        IPC_CHANNELS.CODE_ANALYSIS_REPLY_TO_ANNOTATION,
+        annotationId,
+      ),
+    exportMarkdown: (documentId: string) =>
+      invoke<string>(IPC_CHANNELS.CODE_ANALYSIS_EXPORT_MARKDOWN, documentId),
+    exportJson: (documentId: string) =>
+      invoke<unknown>(IPC_CHANNELS.CODE_ANALYSIS_EXPORT_JSON, documentId),
+    importJson: (payload: unknown) =>
+      invoke<CodeAnalysisDocumentData>(IPC_CHANNELS.CODE_ANALYSIS_IMPORT_JSON, payload),
   },
 };
 
