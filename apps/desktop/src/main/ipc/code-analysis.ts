@@ -1,0 +1,119 @@
+import { BrowserWindow, dialog, ipcMain } from 'electron';
+import { IPC_CHANNELS, createLogger } from '@ai-reader/shared';
+import type {
+  CodeAnalysisAnnotationCreatePayload,
+  CodeAnalysisAnnotationData,
+  CodeAnalysisDiscussionMessageData,
+  CodeAnalysisDocumentData,
+  CodeAnalysisProjectData,
+  CodeAnalysisRunPayload,
+  CodeAnalysisToolTraceData,
+  IPCResult,
+  OpenDirectoryDialogResult,
+} from '@ai-reader/shared';
+import type {
+  AireaderCodeAnalysisExport,
+  AnalysisAnnotationService,
+  AnalysisExportService,
+  AnalysisReplyEngine,
+  CodeAnalysisService,
+} from '../services/code-analysis';
+
+const log = createLogger('ipc:code-analysis');
+
+export interface CodeAnalysisHandlerDeps {
+  codeAnalysisService: CodeAnalysisService;
+  analysisAnnotationService: AnalysisAnnotationService;
+  analysisReplyEngine: AnalysisReplyEngine;
+  analysisExportService: AnalysisExportService;
+}
+
+export function registerCodeAnalysisHandlers(deps: CodeAnalysisHandlerDeps): void {
+  ipcMain.handle(
+    IPC_CHANNELS.DIALOG_OPEN_DIRECTORY,
+    async (event): Promise<IPCResult<OpenDirectoryDialogResult>> =>
+      handle('dialog:openDirectory', async () => {
+        const win = BrowserWindow.fromWebContents(event.sender);
+        if (!win) return { canceled: true, filePaths: [] };
+        const result = await dialog.showOpenDialog(win, {
+          title: 'Select code directory',
+          properties: ['openDirectory'],
+        });
+        return { canceled: result.canceled, filePaths: result.filePaths };
+      }),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_CREATE_PROJECT,
+    async (_event, rootPath: string): Promise<IPCResult<CodeAnalysisProjectData>> =>
+      handle('codeAnalysis:createProject', () => deps.codeAnalysisService.createProject(rootPath)),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_RUN,
+    async (_event, payload: CodeAnalysisRunPayload): Promise<IPCResult<CodeAnalysisDocumentData>> =>
+      handle('codeAnalysis:run', () => deps.codeAnalysisService.runAnalysis(payload)),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_GET_DOCUMENT,
+    async (_event, documentId: string): Promise<IPCResult<CodeAnalysisDocumentData | null>> =>
+      handle('codeAnalysis:getDocument', () => deps.codeAnalysisService.getDocument(documentId)),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_LIST_TRACES,
+    async (_event, documentId: string): Promise<IPCResult<CodeAnalysisToolTraceData[]>> =>
+      handle('codeAnalysis:listTraces', () => deps.codeAnalysisService.listToolTraces(documentId)),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_CREATE_ANNOTATION,
+    async (_event, payload: CodeAnalysisAnnotationCreatePayload): Promise<IPCResult<CodeAnalysisAnnotationData>> =>
+      handle('codeAnalysis:createAnnotation', () => deps.analysisAnnotationService.create(payload)),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_LIST_ANNOTATIONS,
+    async (_event, documentId: string): Promise<IPCResult<CodeAnalysisAnnotationData[]>> =>
+      handle('codeAnalysis:listAnnotations', () => deps.analysisAnnotationService.listByDocument(documentId)),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_REPLY_TO_ANNOTATION,
+    async (_event, annotationId: string): Promise<IPCResult<CodeAnalysisDiscussionMessageData[]>> =>
+      handle('codeAnalysis:replyToAnnotation', async () => {
+        for await (const _event of deps.analysisReplyEngine.generateReply({ annotationId })) {}
+        return deps.analysisAnnotationService.listMessages(annotationId);
+      }),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_EXPORT_MARKDOWN,
+    async (_event, documentId: string): Promise<IPCResult<string>> =>
+      handle('codeAnalysis:exportMarkdown', () => deps.analysisExportService.exportMarkdown(documentId)),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_EXPORT_JSON,
+    async (_event, documentId: string): Promise<IPCResult<AireaderCodeAnalysisExport>> =>
+      handle('codeAnalysis:exportJson', () => deps.analysisExportService.exportJson(documentId)),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_IMPORT_JSON,
+    async (_event, payload: AireaderCodeAnalysisExport): Promise<IPCResult<CodeAnalysisDocumentData>> =>
+      handle('codeAnalysis:importJson', () => deps.analysisExportService.importJson(payload)),
+  );
+}
+
+async function handle<T>(label: string, fn: () => Promise<T> | T): Promise<IPCResult<T>> {
+  try {
+    const data = await fn();
+    return { success: true, data };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    log.error(`IPC ${label} failed: ${message}`);
+    return { success: false, error: message };
+  }
+}
