@@ -1,0 +1,68 @@
+/* ========================================
+   TextSelectionToolbar -- floating toolbar on text selection
+   ======================================== */
+
+.toolbar {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: var(--md-sys-spacing-xs);
+  padding: var(--md-sys-spacing-xs);
+  background-color: var(--md-sys-color-inverse-surface);
+  border-radius: var(--md-sys-shape-corner-small);
+  box-shadow: var(--md-sys-elevation-2);
+  transform: translateX(-50%);
+  animation: fadeIn 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* ----------------------------------------
+   Action button
+   ---------------------------------------- */
+.actionButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--md-sys-spacing-xs);
+  padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-md);
+  border: none;
+  border-radius: var(--md-sys-shape-corner-extra-small);
+  background: transparent;
+  color: var(--md-sys-color-inverse-on-surface);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--md-sys-typescale-label-large);
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.1px;
+  white-space: nowrap;
+  transition: background-color 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.actionButton:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.actionButton:active {
+  background-color: rgba(255, 255, 255, 0.18);
+}
+
+.actionButton:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary-container);
+  outline-offset: 2px;
+}
+
+.actionButtonIcon {
+  font-size: 18px;
+  line-height: 1;
+}

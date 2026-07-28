@@ -1,0 +1,119 @@
+/* ========================================
+   OutlineTree — Document outline / TOC sidebar
+   ======================================== */
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* ----------------------------------------
+   Outline item button
+   ---------------------------------------- */
+.item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--md-sys-typescale-body-medium);
+  line-height: 20px;
+  letter-spacing: 0.25px;
+  color: var(--md-sys-color-on-surface-variant);
+  padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-md);
+  border-radius: var(--md-sys-shape-corner-full);
+  margin: 1px 0;
+  transition: background-color 150ms cubic-bezier(0.2, 0, 0, 1),
+              color 150ms cubic-bezier(0.2, 0, 0, 1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item:hover {
+  background-color: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -2px;
+}
+
+/* ----------------------------------------
+   Active state
+   ---------------------------------------- */
+.itemActive {
+  background-color: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  font-weight: 500;
+}
+
+.itemActive:hover {
+  background-color: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+/* ----------------------------------------
+   Level-based indentation
+   ---------------------------------------- */
+.level1 {
+  padding-left: var(--md-sys-spacing-md);
+}
+
+.level2 {
+  padding-left: calc(var(--md-sys-spacing-md) + 16px);
+  font-size: var(--md-sys-typescale-body-small);
+  line-height: 18px;
+}
+
+.level3 {
+  padding-left: calc(var(--md-sys-spacing-md) + 32px);
+  font-size: var(--md-sys-typescale-body-small);
+  line-height: 18px;
+}
+
+.level4 {
+  padding-left: calc(var(--md-sys-spacing-md) + 48px);
+  font-size: var(--md-sys-typescale-body-small);
+  line-height: 18px;
+}
+
+.level5 {
+  padding-left: calc(var(--md-sys-spacing-md) + 64px);
+  font-size: var(--md-sys-typescale-body-small);
+  line-height: 18px;
+}
+
+.level6 {
+  padding-left: calc(var(--md-sys-spacing-md) + 80px);
+  font-size: var(--md-sys-typescale-body-small);
+  line-height: 18px;
+}
+
+/* ----------------------------------------
+   Empty state
+   ---------------------------------------- */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: var(--md-sys-spacing-sm);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-body-medium);
+  line-height: 20px;
+  letter-spacing: 0.25px;
+  padding: var(--md-sys-spacing-lg);
+  text-align: center;
+}
+
+.emptyStateIcon {
+  font-size: 48px;
+  color: var(--md-sys-color-outline);
+  margin-bottom: var(--md-sys-spacing-sm);
+}

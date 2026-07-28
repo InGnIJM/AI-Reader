@@ -1,0 +1,176 @@
+/* ========================================
+   DiscussionThread -- conversation thread with AI
+   ======================================== */
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ----------------------------------------
+   Message list
+   ---------------------------------------- */
+.messageList {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--md-sys-spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--md-sys-spacing-md);
+}
+
+/* ----------------------------------------
+   Message bubble
+   ---------------------------------------- */
+.message {
+  display: flex;
+  flex-direction: column;
+  gap: var(--md-sys-spacing-xs);
+  padding: var(--md-sys-spacing-md);
+  border-radius: var(--md-sys-shape-corner-medium);
+  border: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.messageUser {
+  background-color: var(--md-sys-color-primary-container);
+  border-color: var(--md-sys-color-primary-container);
+  align-self: flex-end;
+  max-width: 90%;
+}
+
+.messageAssistant {
+  background-color: var(--md-sys-color-surface-container-lowest);
+  align-self: flex-start;
+  max-width: 90%;
+}
+
+/* ----------------------------------------
+   Message role header
+   ---------------------------------------- */
+.messageRole {
+  display: flex;
+  align-items: center;
+  gap: var(--md-sys-spacing-xs);
+  font-size: var(--md-sys-typescale-label-medium);
+  line-height: 16px;
+  letter-spacing: 0.5px;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.roleIcon {
+  font-size: 16px;
+}
+
+/* ----------------------------------------
+   Message content
+   ---------------------------------------- */
+.messageContent {
+  font-size: var(--md-sys-typescale-body-medium);
+  line-height: 20px;
+  letter-spacing: 0.25px;
+  color: var(--md-sys-color-on-surface);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ----------------------------------------
+   Empty state
+   ---------------------------------------- */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: var(--md-sys-spacing-sm);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-body-medium);
+  line-height: 20px;
+  letter-spacing: 0.25px;
+  padding: var(--md-sys-spacing-lg);
+  text-align: center;
+}
+
+.emptyStateIcon {
+  font-size: 48px;
+  color: var(--md-sys-color-outline);
+  margin-bottom: var(--md-sys-spacing-sm);
+}
+
+/* ----------------------------------------
+   Composer (input + send)
+   ---------------------------------------- */
+.composer {
+  display: flex;
+  align-items: center;
+  gap: var(--md-sys-spacing-sm);
+  padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-md);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  background-color: var(--md-sys-color-surface);
+}
+
+.input {
+  flex: 1;
+  padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-md);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-full);
+  background-color: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface);
+  font-family: inherit;
+  font-size: var(--md-sys-typescale-body-medium);
+  line-height: 20px;
+  letter-spacing: 0.25px;
+  outline: none;
+  transition: border-color 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.input::placeholder {
+  color: var(--md-sys-color-outline);
+}
+
+.input:focus {
+  border-color: var(--md-sys-color-primary);
+}
+
+.input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sendButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: var(--md-sys-shape-corner-full);
+  background-color: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  cursor: pointer;
+  font-size: 20px;
+  flex-shrink: 0;
+  transition: background-color 150ms cubic-bezier(0.2, 0, 0, 1),
+              box-shadow 150ms cubic-bezier(0.2, 0, 0, 1),
+              opacity 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.sendButton:hover:not(:disabled) {
+  box-shadow: var(--md-sys-elevation-1);
+}
+
+.sendButton:active:not(:disabled) {
+  box-shadow: none;
+}
+
+.sendButton:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.sendButton:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}

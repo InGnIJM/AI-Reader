@@ -1,0 +1,207 @@
+/* ========================================
+   ReaderLayout — Three-column layout
+   Left: Outline sidebar | Center: Content | Right: Annotation panel
+   ======================================== */
+
+.readerLayout {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--md-sys-color-surface);
+}
+
+/* ----------------------------------------
+   Left — Outline sidebar
+   ---------------------------------------- */
+.outlinePanel {
+  width: var(--reader-outline-width);
+  min-width: var(--reader-outline-width);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--md-sys-color-surface-container-low);
+  border-right: 1px solid var(--md-sys-color-outline-variant);
+  transition: width 200ms cubic-bezier(0.2, 0, 0, 1),
+              min-width 200ms cubic-bezier(0.2, 0, 0, 1),
+              opacity 200ms cubic-bezier(0.2, 0, 0, 1);
+  overflow: hidden;
+}
+
+.outlinePanelCollapsed {
+  width: 0;
+  min-width: 0;
+  opacity: 0;
+  border-right: none;
+}
+
+.outlineHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--md-sys-spacing-md);
+  height: 56px;
+  min-height: 56px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.outlineTitle {
+  font-size: var(--md-sys-typescale-title-small);
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.1px;
+  color: var(--md-sys-color-on-surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.outlineContent {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--md-sys-spacing-sm) 0;
+}
+
+/* ----------------------------------------
+   Center — Content area
+   ---------------------------------------- */
+.contentArea {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--md-sys-color-surface-container-lowest);
+}
+
+.contentToolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--md-sys-spacing-sm);
+  padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-md);
+  height: 48px;
+  min-height: 48px;
+  background-color: var(--md-sys-color-surface-container-low);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.contentBody {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--md-sys-spacing-lg) var(--md-sys-spacing-xl);
+}
+
+/* ----------------------------------------
+   Right — Annotation panel
+   ---------------------------------------- */
+.annotationPanel {
+  width: var(--reader-annotation-width);
+  min-width: var(--reader-annotation-width);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--md-sys-color-surface-container-low);
+  border-left: 1px solid var(--md-sys-color-outline-variant);
+  transition: width 200ms cubic-bezier(0.2, 0, 0, 1),
+              min-width 200ms cubic-bezier(0.2, 0, 0, 1),
+              opacity 200ms cubic-bezier(0.2, 0, 0, 1);
+  overflow: hidden;
+}
+
+.annotationPanelCollapsed {
+  width: 0;
+  min-width: 0;
+  opacity: 0;
+  border-left: none;
+}
+
+.annotationHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--md-sys-spacing-md);
+  height: 56px;
+  min-height: 56px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.annotationTitle {
+  font-size: var(--md-sys-typescale-title-small);
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.1px;
+  color: var(--md-sys-color-on-surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.annotationContent {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--md-sys-spacing-md);
+}
+
+.annotationComposer {
+  padding: var(--md-sys-spacing-md);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  min-height: 80px;
+}
+
+/* ----------------------------------------
+   Icon button (shared)
+   ---------------------------------------- */
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+  font-size: 20px;
+  transition: background-color 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.iconButton:hover {
+  background-color: rgba(0, 0, 0, 0.08);
+}
+
+.iconButton:active {
+  background-color: rgba(0, 0, 0, 0.12);
+}
+
+.iconButton:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+/* ----------------------------------------
+   Empty state placeholder
+   ---------------------------------------- */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: var(--md-sys-spacing-sm);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-body-medium);
+  line-height: 20px;
+  letter-spacing: 0.25px;
+  padding: var(--md-sys-spacing-lg);
+  text-align: center;
+}
+
+.emptyStateIcon {
+  font-size: 48px;
+  color: var(--md-sys-color-outline);
+  margin-bottom: var(--md-sys-spacing-sm);
+}

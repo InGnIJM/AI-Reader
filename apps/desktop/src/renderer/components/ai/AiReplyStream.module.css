@@ -1,0 +1,145 @@
+/* ========================================
+   AiReplyStream -- streaming AI reply display
+   ======================================== */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--md-sys-spacing-sm);
+}
+
+/* ----------------------------------------
+   Content area
+   ---------------------------------------- */
+.content {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: var(--md-sys-spacing-md);
+  background-color: var(--md-sys-color-surface-container-lowest);
+  border-radius: var(--md-sys-shape-corner-medium);
+  line-height: 1.8;
+  color: var(--md-sys-color-on-surface);
+}
+
+/* ----------------------------------------
+   Thinking indicator
+   ---------------------------------------- */
+.thinking {
+  display: flex;
+  align-items: center;
+  gap: var(--md-sys-spacing-sm);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-body-medium);
+  letter-spacing: 0.25px;
+}
+
+.thinking .material-symbols-rounded {
+  font-size: 20px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ----------------------------------------
+   Streaming cursor
+   ---------------------------------------- */
+.cursor {
+  color: var(--md-sys-color-primary);
+  font-weight: 700;
+  animation: blink 1s step-end infinite;
+  margin-left: 2px;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ----------------------------------------
+   Error display
+   ---------------------------------------- */
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--md-sys-spacing-sm);
+  color: var(--md-sys-color-error);
+  font-size: var(--md-sys-typescale-body-medium);
+  line-height: 20px;
+  letter-spacing: 0.25px;
+}
+
+.errorIcon {
+  font-size: 20px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ----------------------------------------
+   Action buttons
+   ---------------------------------------- */
+.actions {
+  display: flex;
+  gap: var(--md-sys-spacing-sm);
+}
+
+.stopButton,
+.retryButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--md-sys-spacing-xs);
+  padding: var(--md-sys-spacing-xs) var(--md-sys-spacing-md);
+  border: none;
+  border-radius: var(--md-sys-shape-corner-full);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--md-sys-typescale-label-large);
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.1px;
+  transition: background-color 150ms cubic-bezier(0.2, 0, 0, 1),
+              box-shadow 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.stopButton {
+  background-color: var(--md-sys-color-error);
+  color: var(--md-sys-color-on-error);
+}
+
+.stopButton:hover {
+  box-shadow: var(--md-sys-elevation-1);
+}
+
+.stopButton:active {
+  box-shadow: none;
+}
+
+.stopButton:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.retryButton {
+  background-color: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+}
+
+.retryButton:hover {
+  background-color: var(--md-sys-color-surface-container-highest);
+}
+
+.retryButton:active {
+  background-color: var(--md-sys-color-surface-container-high);
+}
+
+.retryButton:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.actionIcon {
+  font-size: 18px;
+  line-height: 1;
+}

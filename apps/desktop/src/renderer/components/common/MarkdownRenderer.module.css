@@ -1,0 +1,162 @@
+/* ========================================
+   MarkdownRenderer — M3 styled Markdown content
+   ======================================== */
+
+.container {
+  color: var(--md-sys-color-on-surface);
+  line-height: 1.8;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* ----------------------------------------
+   Headings
+   ---------------------------------------- */
+.h1 {
+  font-size: var(--md-sys-typescale-headline-large);
+  font-weight: 700;
+  line-height: 1.3;
+  margin-top: var(--md-sys-spacing-xxl);
+  margin-bottom: var(--md-sys-spacing-md);
+  color: var(--md-sys-color-on-surface);
+  letter-spacing: -0.25px;
+}
+
+.h2 {
+  font-size: var(--md-sys-typescale-headline-medium);
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: var(--md-sys-spacing-xl);
+  margin-bottom: var(--md-sys-spacing-sm);
+  color: var(--md-sys-color-on-surface);
+}
+
+.h3 {
+  font-size: var(--md-sys-typescale-headline-small);
+  font-weight: 600;
+  line-height: 1.4;
+  margin-top: var(--md-sys-spacing-lg);
+  margin-bottom: var(--md-sys-spacing-sm);
+  color: var(--md-sys-color-on-surface);
+}
+
+.h4 {
+  font-size: var(--md-sys-typescale-title-large);
+  font-weight: 600;
+  line-height: 1.4;
+  margin-top: var(--md-sys-spacing-lg);
+  margin-bottom: var(--md-sys-spacing-xs);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* ----------------------------------------
+   Body text
+   ---------------------------------------- */
+.paragraph {
+  font-size: var(--md-sys-typescale-body-large);
+  line-height: 1.8;
+  margin-bottom: var(--md-sys-spacing-md);
+  color: var(--md-sys-color-on-surface);
+  letter-spacing: 0.5px;
+}
+
+/* ----------------------------------------
+   Lists
+   ---------------------------------------- */
+.list,
+.orderedList {
+  padding-left: var(--md-sys-spacing-lg);
+  margin-bottom: var(--md-sys-spacing-md);
+}
+
+.listItem {
+  font-size: var(--md-sys-typescale-body-large);
+  line-height: 1.8;
+  margin-bottom: var(--md-sys-spacing-xs);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* ----------------------------------------
+   Code
+   ---------------------------------------- */
+.inlineCode {
+  font-family: 'Roboto Mono', 'Consolas', monospace;
+  font-size: var(--md-sys-typescale-body-medium);
+  background-color: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  padding: 2px var(--md-sys-spacing-xs);
+  border-radius: var(--md-sys-shape-corner-extra-small);
+}
+
+.codeBlock {
+  font-family: 'Roboto Mono', 'Consolas', monospace;
+  font-size: var(--md-sys-typescale-body-medium);
+  background-color: var(--md-sys-color-inverse-surface);
+  color: var(--md-sys-color-inverse-on-surface);
+  padding: var(--md-sys-spacing-md);
+  border-radius: var(--md-sys-shape-corner-medium);
+  overflow-x: auto;
+  margin-bottom: var(--md-sys-spacing-md);
+  line-height: 1.6;
+}
+
+/* ----------------------------------------
+   Blockquote
+   ---------------------------------------- */
+.blockquote {
+  border-left: 4px solid var(--md-sys-color-primary);
+  padding-left: var(--md-sys-spacing-md);
+  margin-bottom: var(--md-sys-spacing-md);
+  color: var(--md-sys-color-on-surface-variant);
+  font-style: italic;
+}
+
+/* ----------------------------------------
+   Table (GFM)
+   ---------------------------------------- */
+.tableWrapper {
+  overflow-x: auto;
+  margin-bottom: var(--md-sys-spacing-md);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--md-sys-typescale-body-medium);
+}
+
+.th {
+  text-align: left;
+  font-weight: 600;
+  padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-md);
+  border-bottom: 2px solid var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface);
+}
+
+.td {
+  padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-md);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* ----------------------------------------
+   Horizontal rule
+   ---------------------------------------- */
+.hr {
+  border: none;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  margin: var(--md-sys-spacing-xl) 0;
+}
+
+/* ----------------------------------------
+   Link
+   ---------------------------------------- */
+.link {
+  color: var(--md-sys-color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link:hover {
+  opacity: 0.8;
+}
