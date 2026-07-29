@@ -17,6 +17,8 @@ try {
   // 使用硬编码的通道名称作为后备（与 IPC_CHANNELS 定义一致）
   IPC_CHANNELS = {
     SYSTEM_GET_VERSION: 'system:getVersion',
+    SETTINGS_GET_LANGUAGE: 'settings:getLanguage',
+    SETTINGS_SET_LANGUAGE: 'settings:setLanguage',
     WORKSPACE_CREATE: 'workspace:create',
     WORKSPACE_LIST: 'workspace:list',
     WORKSPACE_GET_BY_ID: 'workspace:getById',
@@ -40,11 +42,14 @@ try {
     DIALOG_OPEN_FILE: 'dialog:openFile',
     DIALOG_OPEN_DIRECTORY: 'dialog:openDirectory',
     CODE_ANALYSIS_CREATE_PROJECT: 'codeAnalysis:createProject',
+    CODE_ANALYSIS_LIST_PROJECTS: 'codeAnalysis:listProjects',
     CODE_ANALYSIS_RUN: 'codeAnalysis:run',
     CODE_ANALYSIS_GET_DOCUMENT: 'codeAnalysis:getDocument',
+    CODE_ANALYSIS_LIST_DOCUMENTS: 'codeAnalysis:listDocuments',
     CODE_ANALYSIS_LIST_TRACES: 'codeAnalysis:listTraces',
     CODE_ANALYSIS_CREATE_ANNOTATION: 'codeAnalysis:createAnnotation',
     CODE_ANALYSIS_LIST_ANNOTATIONS: 'codeAnalysis:listAnnotations',
+    CODE_ANALYSIS_LIST_ANNOTATION_MESSAGES: 'codeAnalysis:listAnnotationMessages',
     CODE_ANALYSIS_REPLY_TO_ANNOTATION: 'codeAnalysis:replyToAnnotation',
     CODE_ANALYSIS_EXPORT_MARKDOWN: 'codeAnalysis:exportMarkdown',
     CODE_ANALYSIS_EXPORT_JSON: 'codeAnalysis:exportJson',
@@ -75,6 +80,7 @@ import type {
   CodeAnalysisProjectData,
   CodeAnalysisRunPayload,
   CodeAnalysisToolTraceData,
+  AppLanguage,
 } from '@ai-reader/shared';
 
 /**
@@ -92,6 +98,12 @@ async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
 const api = {
   // ── System ──────────────────────────────────────────────────────────────
   getAppVersion: () => invoke<string>(IPC_CHANNELS.SYSTEM_GET_VERSION),
+
+  settings: {
+    getLanguage: () => invoke<AppLanguage>(IPC_CHANNELS.SETTINGS_GET_LANGUAGE),
+    setLanguage: (language: AppLanguage) =>
+      invoke<AppLanguage>(IPC_CHANNELS.SETTINGS_SET_LANGUAGE, language),
+  },
 
   // ── Workspace ───────────────────────────────────────────────────────────
   workspace: {
@@ -162,6 +174,8 @@ const api = {
   codeAnalysis: {
     createProject: (rootPath: string) =>
       invoke<CodeAnalysisProjectData>(IPC_CHANNELS.CODE_ANALYSIS_CREATE_PROJECT, rootPath),
+    listProjects: () =>
+      invoke<CodeAnalysisProjectData[]>(IPC_CHANNELS.CODE_ANALYSIS_LIST_PROJECTS),
     run: (projectId: string, goal: string) =>
       invoke<CodeAnalysisDocumentData>(
         IPC_CHANNELS.CODE_ANALYSIS_RUN,
@@ -169,12 +183,19 @@ const api = {
       ),
     getDocument: (id: string) =>
       invoke<CodeAnalysisDocumentData | null>(IPC_CHANNELS.CODE_ANALYSIS_GET_DOCUMENT, id),
+    listDocuments: (projectId: string) =>
+      invoke<CodeAnalysisDocumentData[]>(IPC_CHANNELS.CODE_ANALYSIS_LIST_DOCUMENTS, projectId),
     listTraces: (documentId: string) =>
       invoke<CodeAnalysisToolTraceData[]>(IPC_CHANNELS.CODE_ANALYSIS_LIST_TRACES, documentId),
     createAnnotation: (payload: CodeAnalysisAnnotationCreatePayload) =>
       invoke<CodeAnalysisAnnotationData>(IPC_CHANNELS.CODE_ANALYSIS_CREATE_ANNOTATION, payload),
     listAnnotations: (documentId: string) =>
       invoke<CodeAnalysisAnnotationData[]>(IPC_CHANNELS.CODE_ANALYSIS_LIST_ANNOTATIONS, documentId),
+    listAnnotationMessages: (annotationId: string) =>
+      invoke<CodeAnalysisDiscussionMessageData[]>(
+        IPC_CHANNELS.CODE_ANALYSIS_LIST_ANNOTATION_MESSAGES,
+        annotationId,
+      ),
     replyToAnnotation: (annotationId: string) =>
       invoke<CodeAnalysisDiscussionMessageData[]>(
         IPC_CHANNELS.CODE_ANALYSIS_REPLY_TO_ANNOTATION,
