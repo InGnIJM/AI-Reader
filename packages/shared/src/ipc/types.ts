@@ -282,21 +282,32 @@ export interface CodeAnalysisToolTraceData {
   createdAt?: string;
 }
 
-export interface CodeAnalysisAnnotationCreatePayload {
+interface CodeAnalysisAnnotationCreateBasePayload {
   analysisDocumentId: string;
   selectedText: string;
   question: string;
 }
 
+interface CodeAnalysisLegacyAnnotationCreatePayload
+  extends CodeAnalysisAnnotationCreateBasePayload {
+  sourceStartOffset?: never;
+  sourceEndOffset?: never;
+}
+
 export interface CodeAnalysisSourceAnnotationCreatePayload
-  extends CodeAnalysisAnnotationCreatePayload {
+  extends CodeAnalysisAnnotationCreateBasePayload {
   sourceStartOffset: number;
   sourceEndOffset: number;
 }
 
+export type CodeAnalysisAnnotationCreatePayload =
+  | CodeAnalysisLegacyAnnotationCreatePayload
+  | CodeAnalysisSourceAnnotationCreatePayload;
+
 export interface CodeAnalysisAnnotationData {
   id: string;
   analysisDocumentId: string;
+  selectedText: string;
   anchorStartOffset: number;
   anchorEndOffset: number;
   anchorExactText: string;

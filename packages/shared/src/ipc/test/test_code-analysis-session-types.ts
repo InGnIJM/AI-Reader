@@ -8,6 +8,7 @@ import type {
   AnalysisSessionStatus,
   AnalysisTurn,
   CodeAnalysisAnnotationCreatePayload,
+  CodeAnalysisAnnotationData,
   CodeAnalysisCheckoutTurnPayload,
   CodeAnalysisDeleteSessionPayload,
   CodeAnalysisListRecentSessionsPayload,
@@ -137,14 +138,34 @@ describe('code analysis session contracts', () => {
       selectedText: 'Repository',
       question: 'What does this mean?',
     };
-    const sourceMapped: CodeAnalysisSourceAnnotationCreatePayload = {
-      ...legacy,
+    const sourceMapped: CodeAnalysisAnnotationCreatePayload = {
+      analysisDocumentId: turn.id,
+      selectedText: 'Repository',
+      question: 'What does this mean?',
       sourceStartOffset: 2,
       sourceEndOffset: 12,
     };
+    const sourceContract: CodeAnalysisSourceAnnotationCreatePayload = sourceMapped;
+    const annotation: CodeAnalysisAnnotationData = {
+      id: 'annotation-1',
+      analysisDocumentId: turn.id,
+      selectedText: 'Repository',
+      anchorStartOffset: 2,
+      anchorEndOffset: 12,
+      anchorExactText: 'Repository',
+      anchorPrefix: '# ',
+      anchorSuffix: '',
+      question: 'What does this mean?',
+      status: 'pending',
+      createdAt: '2026-07-29T00:00:00.000Z',
+      updatedAt: '2026-07-29T00:00:00.000Z',
+    };
 
-    expect(sourceMapped.sourceEndOffset).toBeGreaterThan(sourceMapped.sourceStartOffset);
+    expect(sourceContract.sourceEndOffset).toBeGreaterThan(
+      sourceContract.sourceStartOffset,
+    );
     expect(legacy.selectedText).toBe('Repository');
+    expect(annotation.selectedText).toBe('Repository');
   });
 
   it('defines every session, turn, and branch IPC channel', () => {
