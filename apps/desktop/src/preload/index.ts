@@ -46,6 +46,7 @@ try {
     CODE_ANALYSIS_RUN: 'codeAnalysis:run',
     CODE_ANALYSIS_GET_DOCUMENT: 'codeAnalysis:getDocument',
     CODE_ANALYSIS_LIST_DOCUMENTS: 'codeAnalysis:listDocuments',
+    CODE_ANALYSIS_LIST_RECENT_DOCUMENTS: 'codeAnalysis:listRecentDocuments',
     CODE_ANALYSIS_LIST_TRACES: 'codeAnalysis:listTraces',
     CODE_ANALYSIS_CREATE_ANNOTATION: 'codeAnalysis:createAnnotation',
     CODE_ANALYSIS_LIST_ANNOTATIONS: 'codeAnalysis:listAnnotations',
@@ -176,15 +177,17 @@ const api = {
       invoke<CodeAnalysisProjectData>(IPC_CHANNELS.CODE_ANALYSIS_CREATE_PROJECT, rootPath),
     listProjects: () =>
       invoke<CodeAnalysisProjectData[]>(IPC_CHANNELS.CODE_ANALYSIS_LIST_PROJECTS),
-    run: (projectId: string, goal: string) =>
+    run: (projectId: string | null, goal: string) =>
       invoke<CodeAnalysisDocumentData>(
         IPC_CHANNELS.CODE_ANALYSIS_RUN,
         { projectId, goal } satisfies CodeAnalysisRunPayload,
       ),
     getDocument: (id: string) =>
       invoke<CodeAnalysisDocumentData | null>(IPC_CHANNELS.CODE_ANALYSIS_GET_DOCUMENT, id),
-    listDocuments: (projectId: string) =>
+    listDocuments: (projectId: string | null) =>
       invoke<CodeAnalysisDocumentData[]>(IPC_CHANNELS.CODE_ANALYSIS_LIST_DOCUMENTS, projectId),
+    listRecentDocuments: () =>
+      invoke<CodeAnalysisDocumentData[]>(IPC_CHANNELS.CODE_ANALYSIS_LIST_RECENT_DOCUMENTS),
     listTraces: (documentId: string) =>
       invoke<CodeAnalysisToolTraceData[]>(IPC_CHANNELS.CODE_ANALYSIS_LIST_TRACES, documentId),
     createAnnotation: (payload: CodeAnalysisAnnotationCreatePayload) =>

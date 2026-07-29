@@ -18,8 +18,13 @@ import type {
   AnalysisReplyEngine,
   CodeAnalysisService,
 } from '../services/code-analysis';
+import {
+  hashProjectRootPath,
+  normalizeProjectRootPath,
+} from '../db/code-analysis-migration';
 
 const log = createLogger('ipc:code-analysis');
+const authorizedDirectoriesBySender = new Map<number, Set<string>>();
 
 export interface CodeAnalysisHandlerDeps {
   codeAnalysisService: CodeAnalysisService;
@@ -39,14 +44,36 @@ export function registerCodeAnalysisHandlers(deps: CodeAnalysisHandlerDeps): voi
           title: 'Select code directory',
           properties: ['openDirectory'],
         });
+        if (!result.canceled) {
+          const senderId = event.sender.id;
+          const authorizedDirectories =
+            authorizedDirectoriesBySender.get(senderId) ?? new Set<string>();
+          result.filePaths.forEach((filePath) =>
+            authorizedDirectories.add(hashProjectRootPath(filePath)),
+          );
+          authorizedDirectoriesBySender.set(senderId, authorizedDirectories);
+          event.sender.once?.('destroyed', () => {
+            authorizedDirectoriesBySender.delete(senderId);
+          });
+        }
         return { canceled: result.canceled, filePaths: result.filePaths };
       }),
   );
 
   ipcMain.handle(
     IPC_CHANNELS.CODE_ANALYSIS_CREATE_PROJECT,
-    async (_event, rootPath: string): Promise<IPCResult<CodeAnalysisProjectData>> =>
-      handle('codeAnalysis:createProject', () => deps.codeAnalysisService.createProject(rootPath)),
+    async (event, rootPath: string): Promise<IPCResult<CodeAnalysisProjectData>> =>
+      handle('codeAnalysis:createProject', () => {
+        const normalizedRootPath = normalizeProjectRootPath(rootPath);
+        const authorizedDirectories = authorizedDirectoriesBySender.get(event.sender.id);
+        if (!authorizedDirectories?.delete(hashProjectRootPath(normalizedRootPath))) {
+          throw new Error('Directory access was not authorized by the user');
+        }
+        if (authorizedDirectories.size === 0) {
+          authorizedDirectoriesBySender.delete(event.sender.id);
+        }
+        return deps.codeAnalysisService.createProject(normalizedRootPath);
+      }),
   );
 
   ipcMain.handle(
@@ -63,9 +90,17 @@ export function registerCodeAnalysisHandlers(deps: CodeAnalysisHandlerDeps): voi
 
   ipcMain.handle(
     IPC_CHANNELS.CODE_ANALYSIS_LIST_DOCUMENTS,
-    async (_event, projectId: string): Promise<IPCResult<CodeAnalysisDocumentData[]>> =>
+    async (_event, projectId: string | null): Promise<IPCResult<CodeAnalysisDocumentData[]>> =>
       handle('codeAnalysis:listDocuments', () =>
         deps.codeAnalysisService.listDocumentsByProject(projectId),
+      ),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_LIST_RECENT_DOCUMENTS,
+    async (): Promise<IPCResult<CodeAnalysisDocumentData[]>> =>
+      handle('codeAnalysis:listRecentDocuments', () =>
+        deps.codeAnalysisService.listRecentDocuments(),
       ),
   );
 
