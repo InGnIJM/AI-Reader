@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, within, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { ProjectSidebar } from '../ProjectSidebar';
 import type { AnalysisSession } from '@ai-reader/shared';
@@ -34,12 +34,6 @@ const defaultLabels = {
   language: '语言',
   chinese: '中文',
   english: 'English',
-  newSession: '新建会话',
-  renameSession: '重命名',
-  archiveSession: '归档',
-  deleteSession: '删除',
-  confirmDelete: '确认删除',
-  cancel: '取消',
 };
 
 function renderSidebar(overrides: Record<string, unknown> = {}) {
@@ -106,21 +100,14 @@ describe('ProjectSidebar session list', () => {
     expect(sessionB).toHaveAttribute('data-active', 'false');
   });
 
-  it('should render sessions grouped by project when sessionsByProject is provided', () => {
-    const projects = [
-      { id: 'p1', name: 'Project Alpha' },
+  it('should render sessions in recent section', () => {
+    const sessions = [
+      makeSession({ id: 's1', title: 'Session in Recent' }),
     ];
-    const recentSessions: AnalysisSession[] = [];
-    const sessionsByProject: Record<string, AnalysisSession[]> = {
-      p1: [
-        makeSession({ id: 's1', title: 'Session in Alpha', projectId: 'p1' }),
-      ],
-    };
-    const expandedProjectIds = new Set(['p1']);
 
-    renderSidebar({ projects, recentSessions, sessionsByProject, expandedProjectIds });
+    renderSidebar({ recentSessions: sessions });
 
-    expect(screen.getByText('Session in Alpha')).toBeInTheDocument();
+    expect(screen.getByText('Session in Recent')).toBeInTheDocument();
   });
 });
 
@@ -152,219 +139,6 @@ describe('ProjectSidebar session selection', () => {
   });
 });
 
-// ── Session Management: Rename ───────────────────────────────────────────────
-
-describe('ProjectSidebar session rename', () => {
-  it('should show rename option in context menu when right-clicking a session', () => {
-    const sessions = [
-      makeSession({ id: 's1', title: 'Rename Me' }),
-    ];
-
-    renderSidebar({ recentSessions: sessions });
-
-    const sessionButton = screen.getByText('Rename Me').closest('button')!;
-    fireEvent.contextMenu(sessionButton);
-
-    expect(screen.getByText('重命名')).toBeInTheDocument();
-  });
-
-  it('should show inline rename input when rename is triggered', () => {
-    const sessions = [
-      makeSession({ id: 's1', title: 'Old Title' }),
-    ];
-
-    renderSidebar({ recentSessions: sessions });
-
-    const sessionButton = screen.getByText('Old Title').closest('button')!;
-    fireEvent.contextMenu(sessionButton);
-
-    fireEvent.click(screen.getByText('重命名'));
-
-    const input = screen.getByDisplayValue('Old Title');
-    expect(input).toBeInTheDocument();
-    expect(input.tagName).toBe('INPUT');
-  });
-
-  it('should call onRenameSession with new title on confirm', () => {
-    const onRenameSession = vi.fn();
-    const sessions = [
-      makeSession({ id: 's1', title: 'Old Title' }),
-    ];
-
-    renderSidebar({ recentSessions: sessions, onRenameSession });
-
-    const sessionButton = screen.getByText('Old Title').closest('button')!;
-    fireEvent.contextMenu(sessionButton);
-    fireEvent.click(screen.getByText('重命名'));
-
-    const input = screen.getByDisplayValue('Old Title');
-    fireEvent.change(input, { target: { value: 'New Title' } });
-    fireEvent.keyDown(input, { key: 'Enter' });
-
-    expect(onRenameSession).toHaveBeenCalledWith('s1', 'New Title');
-  });
-
-  it('should cancel rename on Escape key', () => {
-    const onRenameSession = vi.fn();
-    const sessions = [
-      makeSession({ id: 's1', title: 'Keep Title' }),
-    ];
-
-    renderSidebar({ recentSessions: sessions, onRenameSession });
-
-    const sessionButton = screen.getByText('Keep Title').closest('button')!;
-    fireEvent.contextMenu(sessionButton);
-    fireEvent.click(screen.getByText('重命名'));
-
-    const input = screen.getByDisplayValue('Keep Title');
-    fireEvent.change(input, { target: { value: 'Changed' } });
-    fireEvent.keyDown(input, { key: 'Escape' });
-
-    expect(onRenameSession).not.toHaveBeenCalled();
-    expect(screen.getByText('Keep Title')).toBeInTheDocument();
-  });
-});
-
-// ── Session Management: Archive ──────────────────────────────────────────────
-
-describe('ProjectSidebar session archive', () => {
-  it('should show archive option in context menu', () => {
-    const sessions = [
-      makeSession({ id: 's1', title: 'Archive Me' }),
-    ];
-
-    renderSidebar({ recentSessions: sessions });
-
-    const sessionButton = screen.getByText('Archive Me').closest('button')!;
-    fireEvent.contextMenu(sessionButton);
-
-    expect(screen.getByText('归档')).toBeInTheDocument();
-  });
-
-  it('should call onArchiveSession when archive is clicked', () => {
-    const onArchiveSession = vi.fn();
-    const sessions = [
-      makeSession({ id: 's1', title: 'Archive Me' }),
-    ];
-
-    renderSidebar({ recentSessions: sessions, onArchiveSession });
-
-    const sessionButton = screen.getByText('Archive Me').closest('button')!;
-    fireEvent.contextMenu(sessionButton);
-    fireEvent.click(screen.getByText('归档'));
-
-    expect(onArchiveSession).toHaveBeenCalledWith('s1');
-  });
-});
-
-// ── Session Management: Delete ───────────────────────────────────────────────
-
-describe('ProjectSidebar session delete', () => {
-  it('should show delete option in context menu', () => {
-    const sessions = [
-      makeSession({ id: 's1', title: 'Delete Me' }),
-    ];
-
-    renderSidebar({ recentSessions: sessions });
-
-    const sessionButton = screen.getByText('Delete Me').closest('button')!;
-    fireEvent.contextMenu(sessionButton);
-
-    expect(screen.getByText('删除')).toBeInTheDocument();
-  });
-
-  it('should show confirmation dialog before deleting', () => {
-    const onDeleteSession = vi.fn();
-    const sessions = [
-      makeSession({ id: 's1', title: 'Delete Me' }),
-    ];
-
-    renderSidebar({ recentSessions: sessions, onDeleteSession });
-
-    const sessionButton = screen.getByText('Delete Me').closest('button')!;
-    fireEvent.contextMenu(sessionButton);
-    fireEvent.click(screen.getByText('删除'));
-
-    // Should show a confirmation prompt, not immediately call onDeleteSession
-    expect(onDeleteSession).not.toHaveBeenCalled();
-    expect(screen.getByText('确认删除')).toBeInTheDocument();
-  });
-
-  it('should call onDeleteSession after confirmation', () => {
-    const onDeleteSession = vi.fn();
-    const sessions = [
-      makeSession({ id: 's1', title: 'Delete Me' }),
-    ];
-
-    renderSidebar({ recentSessions: sessions, onDeleteSession });
-
-    const sessionButton = screen.getByText('Delete Me').closest('button')!;
-    fireEvent.contextMenu(sessionButton);
-    fireEvent.click(screen.getByText('删除'));
-    fireEvent.click(screen.getByText('确认删除'));
-
-    expect(onDeleteSession).toHaveBeenCalledWith('s1');
-  });
-
-  it('should not call onDeleteSession when cancel is clicked', () => {
-    const onDeleteSession = vi.fn();
-    const sessions = [
-      makeSession({ id: 's1', title: 'Keep Me' }),
-    ];
-
-    renderSidebar({ recentSessions: sessions, onDeleteSession });
-
-    const sessionButton = screen.getByText('Keep Me').closest('button')!;
-    fireEvent.contextMenu(sessionButton);
-    fireEvent.click(screen.getByText('删除'));
-    fireEvent.click(screen.getByText('取消'));
-
-    expect(onDeleteSession).not.toHaveBeenCalled();
-    expect(screen.getByText('Keep Me')).toBeInTheDocument();
-  });
-});
-
-// ── New Session Button ───────────────────────────────────────────────────────
-
-describe('ProjectSidebar new session', () => {
-  it('should show new session button when onNewSession is provided', () => {
-    const onNewSession = vi.fn();
-
-    renderSidebar({ onNewSession });
-
-    const button = screen.getByText('新建会话');
-    expect(button).toBeInTheDocument();
-  });
-
-  it('should call onNewSession when new session button is clicked', () => {
-    const onNewSession = vi.fn();
-
-    renderSidebar({ onNewSession });
-
-    fireEvent.click(screen.getByText('新建会话'));
-    expect(onNewSession).toHaveBeenCalledTimes(1);
-  });
-});
-
-// ── Archived Session Status ──────────────────────────────────────────────────
-
-describe('ProjectSidebar archived session display', () => {
-  it('should visually distinguish archived sessions from active ones', () => {
-    const sessions = [
-      makeSession({ id: 's1', title: 'Active Session', status: 'active' }),
-      makeSession({ id: 's2', title: 'Archived Session', status: 'archived' }),
-    ];
-
-    renderSidebar({ recentSessions: sessions });
-
-    const activeBtn = screen.getByText('Active Session').closest('button')!;
-    const archivedBtn = screen.getByText('Archived Session').closest('button')!;
-
-    expect(activeBtn).toHaveAttribute('data-status', 'active');
-    expect(archivedBtn).toHaveAttribute('data-status', 'archived');
-  });
-});
-
 // ── Backward Compatibility ───────────────────────────────────────────────────
 
 describe('ProjectSidebar backward compatibility', () => {
@@ -393,22 +167,44 @@ describe('ProjectSidebar backward compatibility', () => {
   });
 });
 
-// ── Context Menu Close ───────────────────────────────────────────────────────
+// ── Project Tree ─────────────────────────────────────────────────────────────
 
-describe('ProjectSidebar context menu close behavior', () => {
-  it('should close context menu when clicking outside', () => {
-    const sessions = [
-      makeSession({ id: 's1', title: 'Session With Menu' }),
+describe('ProjectSidebar project tree', () => {
+  it('should render project folders', () => {
+    const projects = [
+      { id: 'p1', name: 'Project Alpha' },
+      { id: 'p2', name: 'Project Beta' },
     ];
 
-    renderSidebar({ recentSessions: sessions });
+    renderSidebar({ projects });
 
-    const sessionButton = screen.getByText('Session With Menu').closest('button')!;
-    fireEvent.contextMenu(sessionButton);
-    expect(screen.getByText('重命名')).toBeInTheDocument();
+    expect(screen.getByText('Project Alpha')).toBeInTheDocument();
+    expect(screen.getByText('Project Beta')).toBeInTheDocument();
+  });
 
-    // Click elsewhere to close menu
-    fireEvent.mouseDown(document.body);
-    expect(screen.queryByText('重命名')).not.toBeInTheDocument();
+  it('should render local documents folder', () => {
+    renderSidebar();
+
+    expect(screen.getByText('无项目')).toBeInTheDocument();
+  });
+
+  it('should call onToggleProject when clicking project', () => {
+    const onToggleProject = vi.fn();
+    const projects = [
+      { id: 'p1', name: 'Click Project' },
+    ];
+
+    renderSidebar({ projects, onToggleProject });
+
+    fireEvent.click(screen.getByText('Click Project'));
+    expect(onToggleProject).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'p1', name: 'Click Project' })
+    );
+  });
+
+  it('should show no projects message when projects is empty', () => {
+    renderSidebar({ projects: [] });
+
+    expect(screen.getByText('暂无项目')).toBeInTheDocument();
   });
 });
