@@ -460,7 +460,7 @@ describe('code-analysis database schema', () => {
     `).run(
       'cleanup-direct',
       'turn-direct',
-      'generated-documents/turn-direct.md',
+      'generated-documents/turn-direct',
       now,
       now,
     );
@@ -485,7 +485,7 @@ describe('code-analysis database schema', () => {
     `).run(
       'cleanup-session',
       'turn-session',
-      'generated-documents/turn-session.md',
+      'generated-documents/turn-session',
       now,
       now,
     );
@@ -501,14 +501,22 @@ describe('code-analysis database schema', () => {
     expect(
       db.db
         .prepare(
-          `SELECT id, document_id AS documentId
+          `SELECT id, document_id AS documentId, relative_path AS relativePath
            FROM analysis_file_cleanup_queue
            ORDER BY id`,
         )
         .all(),
     ).toEqual([
-      { id: 'cleanup-direct', documentId: 'turn-direct' },
-      { id: 'cleanup-session', documentId: 'turn-session' },
+      {
+        id: 'cleanup-direct',
+        documentId: 'turn-direct',
+        relativePath: 'generated-documents/turn-direct',
+      },
+      {
+        id: 'cleanup-session',
+        documentId: 'turn-session',
+        relativePath: 'generated-documents/turn-session',
+      },
     ]);
     expect(db.db.pragma('foreign_key_check')).toEqual([]);
   });
