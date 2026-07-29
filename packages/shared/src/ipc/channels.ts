@@ -9,6 +9,8 @@
 export const IPC_CHANNELS = {
   /** 获取应用版本号 */
   SYSTEM_GET_VERSION: 'system:getVersion',
+  SETTINGS_GET_LANGUAGE: 'settings:getLanguage',
+  SETTINGS_SET_LANGUAGE: 'settings:setLanguage',
 
   // ── Workspace ───────────────────────────────────────────────────────────
   /** 创建工作区 */
@@ -64,11 +66,14 @@ export const IPC_CHANNELS = {
   DIALOG_OPEN_DIRECTORY: 'dialog:openDirectory',
 
   CODE_ANALYSIS_CREATE_PROJECT: 'codeAnalysis:createProject',
+  CODE_ANALYSIS_LIST_PROJECTS: 'codeAnalysis:listProjects',
   CODE_ANALYSIS_RUN: 'codeAnalysis:run',
   CODE_ANALYSIS_GET_DOCUMENT: 'codeAnalysis:getDocument',
+  CODE_ANALYSIS_LIST_DOCUMENTS: 'codeAnalysis:listDocuments',
   CODE_ANALYSIS_LIST_TRACES: 'codeAnalysis:listTraces',
   CODE_ANALYSIS_CREATE_ANNOTATION: 'codeAnalysis:createAnnotation',
   CODE_ANALYSIS_LIST_ANNOTATIONS: 'codeAnalysis:listAnnotations',
+  CODE_ANALYSIS_LIST_ANNOTATION_MESSAGES: 'codeAnalysis:listAnnotationMessages',
   CODE_ANALYSIS_REPLY_TO_ANNOTATION: 'codeAnalysis:replyToAnnotation',
   CODE_ANALYSIS_EXPORT_MARKDOWN: 'codeAnalysis:exportMarkdown',
   CODE_ANALYSIS_EXPORT_JSON: 'codeAnalysis:exportJson',

@@ -50,9 +50,23 @@ export function registerCodeAnalysisHandlers(deps: CodeAnalysisHandlerDeps): voi
   );
 
   ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_LIST_PROJECTS,
+    async (): Promise<IPCResult<CodeAnalysisProjectData[]>> =>
+      handle('codeAnalysis:listProjects', () => deps.codeAnalysisService.listProjects()),
+  );
+
+  ipcMain.handle(
     IPC_CHANNELS.CODE_ANALYSIS_RUN,
     async (_event, payload: CodeAnalysisRunPayload): Promise<IPCResult<CodeAnalysisDocumentData>> =>
       handle('codeAnalysis:run', () => deps.codeAnalysisService.runAnalysis(payload)),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_LIST_DOCUMENTS,
+    async (_event, projectId: string): Promise<IPCResult<CodeAnalysisDocumentData[]>> =>
+      handle('codeAnalysis:listDocuments', () =>
+        deps.codeAnalysisService.listDocumentsByProject(projectId),
+      ),
   );
 
   ipcMain.handle(
@@ -80,10 +94,23 @@ export function registerCodeAnalysisHandlers(deps: CodeAnalysisHandlerDeps): voi
   );
 
   ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_LIST_ANNOTATION_MESSAGES,
+    async (
+      _event,
+      annotationId: string,
+    ): Promise<IPCResult<CodeAnalysisDiscussionMessageData[]>> =>
+      handle('codeAnalysis:listAnnotationMessages', () =>
+        deps.analysisAnnotationService.listMessages(annotationId),
+      ),
+  );
+
+  ipcMain.handle(
     IPC_CHANNELS.CODE_ANALYSIS_REPLY_TO_ANNOTATION,
     async (_event, annotationId: string): Promise<IPCResult<CodeAnalysisDiscussionMessageData[]>> =>
       handle('codeAnalysis:replyToAnnotation', async () => {
-        for await (const _event of deps.analysisReplyEngine.generateReply({ annotationId })) {}
+        for await (const event of deps.analysisReplyEngine.generateReply({ annotationId })) {
+          if (event.type === 'error') throw new Error(event.error);
+        }
         return deps.analysisAnnotationService.listMessages(annotationId);
       }),
   );
