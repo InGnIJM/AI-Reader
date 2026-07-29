@@ -75,3 +75,56 @@ export function buildLocalDocumentMessages(input: {
     },
   ];
 }
+
+export function buildMultiTurnMessages(input: {
+  goal: string;
+  projectContext: string;
+  traceSummary: string;
+  conversationHistory?: ChatMessage[];
+  outputLanguage?: AppLanguage;
+}): ChatMessage[] {
+  const languageInstruction =
+    input.outputLanguage === 'en-US'
+      ? 'Write the final answer in English unless the user explicitly requests another language.'
+      : 'Write the final answer in Simplified Chinese unless the user explicitly requests another language.';
+
+  const messages: ChatMessage[] = [
+    {
+      role: 'system',
+      content: [
+        'You are continuing an analysis conversation. Previous turns are provided for context.',
+        'You are a read-only code analysis assistant inside AI-Reader.',
+        'You may request read-only tools when evidence is missing.',
+        'Never modify files, never run shell commands, and never claim evidence you did not inspect.',
+        languageInstruction,
+      ].join('\n'),
+    },
+  ];
+
+  // Insert conversation history if provided
+  if (input.conversationHistory) {
+    messages.push(...input.conversationHistory);
+  }
+
+  // Current goal with project context and trace
+  messages.push({
+    role: 'user',
+    content: [
+      '## Project Context',
+      input.projectContext,
+      '',
+      '## Tool Trace So Far',
+      input.traceSummary,
+      '',
+      '## User Analysis Goal',
+      input.goal,
+      '',
+      '## Final Output Contract',
+      'Return a Markdown document shaped by the user goal.',
+      'Include file path references when claims depend on project files.',
+      'Label uncertainty when evidence is missing or budget is exhausted.',
+    ].join('\n'),
+  });
+
+  return messages;
+}

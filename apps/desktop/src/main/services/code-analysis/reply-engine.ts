@@ -16,33 +16,43 @@ export function buildAnalysisReplyMessages(input: {
   question: string;
   contentMarkdown: string;
   outputLanguage: AppLanguage;
+  projectName?: string;
+  discussionHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }): ChatMessage[] {
   const languageInstruction =
     input.outputLanguage === 'en-US'
       ? 'Write the answer in English unless the user explicitly requests another language.'
       : 'Write the answer in Simplified Chinese unless the user explicitly requests another language.';
+
+  const systemLines = [
+    'You answer comments on a generated code analysis document. Use Markdown.',
+    'Be concise and evidence-aware.',
+    languageInstruction,
+  ];
+  if (input.projectName) {
+    systemLines.push(`Project: ${input.projectName}`);
+  }
+
+  const userLines: string[] = [];
+
+  // Include ordered discussion history before the current question
+  if (input.discussionHistory && input.discussionHistory.length > 0) {
+    userLines.push('Discussion history:');
+    for (const msg of input.discussionHistory) {
+      userLines.push(`[${msg.role}]: ${msg.content}`);
+    }
+    userLines.push('');
+  }
+
+  userLines.push(`Original analysis goal: ${input.goal}`, '');
+  userLines.push(`Selected text: ${input.selectedText}`, '');
+  userLines.push(`User comment: ${input.question}`, '');
+  userLines.push('Analysis document excerpt:');
+  userLines.push(input.contentMarkdown.slice(0, 5000));
+
   return [
-    {
-      role: 'system',
-      content: [
-        'You answer comments on a generated code analysis document. Use Markdown.',
-        'Be concise and evidence-aware.',
-        languageInstruction,
-      ].join('\n'),
-    },
-    {
-      role: 'user',
-      content: [
-        `Original analysis goal: ${input.goal}`,
-        '',
-        `Selected text: ${input.selectedText}`,
-        '',
-        `User comment: ${input.question}`,
-        '',
-        'Analysis document excerpt:',
-        input.contentMarkdown.slice(0, 5000),
-      ].join('\n'),
-    },
+    { role: 'system', content: systemLines.join('\n') },
+    { role: 'user', content: userLines.join('\n') },
   ];
 }
 
@@ -63,17 +73,31 @@ export class AnalysisReplyEngine {
       return;
     }
 
+    // Fetch document joined through session to get project metadata
     const document = this.deps.db.db
       .prepare(
         `
-      SELECT goal, content_markdown AS contentMarkdown FROM analysis_documents WHERE id = ?
+      SELECT d.goal,
+             d.content_markdown AS contentMarkdown,
+             p.name AS projectName
+      FROM analysis_documents d
+      LEFT JOIN analysis_sessions s ON d.session_id = s.id
+      LEFT JOIN code_projects p ON s.project_id = p.id
+      WHERE d.id = ?
     `,
       )
-      .get(annotation.analysisDocumentId) as { goal: string; contentMarkdown: string } | undefined;
+      .get(annotation.analysisDocumentId) as {
+        goal: string;
+        contentMarkdown: string;
+        projectName: string | null;
+      } | undefined;
     if (!document) {
       yield { type: 'error', error: `Analysis document not found: ${annotation.analysisDocumentId}` };
       return;
     }
+
+    // Fetch ordered discussion history for this annotation
+    const discussionHistory = await this.deps.annotationService.listMessages(annotation.id);
 
     const messages = buildAnalysisReplyMessages({
       goal: document.goal,
@@ -81,6 +105,8 @@ export class AnalysisReplyEngine {
       question: annotation.question,
       contentMarkdown: document.contentMarkdown,
       outputLanguage: this.deps.settings?.getLanguage() ?? 'zh-CN',
+      projectName: document.projectName ?? undefined,
+      discussionHistory: discussionHistory.map((m) => ({ role: m.role, content: m.content })),
     });
 
     let full = '';

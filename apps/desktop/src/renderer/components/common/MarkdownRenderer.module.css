@@ -160,3 +160,31 @@
 .link:hover {
   opacity: 0.8;
 }
+
+/* ----------------------------------------
+   Annotation marks
+   ---------------------------------------- */
+.annotationMark {
+  background-color: var(--md-sys-color-tertiary-container, #ecd8f5);
+  color: var(--md-sys-color-on-tertiary-container, #2c1440);
+  border-radius: 2px;
+  padding: 0 2px;
+  cursor: pointer;
+  outline: none;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.annotationMark:hover {
+  filter: brightness(0.95);
+}
+
+.annotationMark:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary, #6750a4);
+  outline-offset: 2px;
+}
+
+.activeAnnotationMark {
+  background-color: var(--md-sys-color-primary-container, #eaddff);
+  color: var(--md-sys-color-on-primary-container, #21005d);
+  box-shadow: 0 0 0 2px var(--md-sys-color-primary, #6750a4);
+}

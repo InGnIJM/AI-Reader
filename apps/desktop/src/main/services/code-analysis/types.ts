@@ -14,7 +14,6 @@ export interface CodeProject {
 
 export interface AnalysisDocument {
   id: string;
-  projectId: string | null;
   goal: string;
   contentMarkdown: string;
   status: AnalysisStatus;

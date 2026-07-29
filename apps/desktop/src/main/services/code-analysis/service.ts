@@ -43,7 +43,9 @@ export class CodeAnalysisService {
       .prepare(
         `
       SELECT id, name, root_path AS rootPath, root_path_hash AS rootPathHash,
-             (SELECT COUNT(*) FROM analysis_documents WHERE project_id = code_projects.id)
+             (SELECT COUNT(*) FROM analysis_documents d
+              JOIN analysis_sessions s ON s.id = d.session_id
+              WHERE s.project_id = code_projects.id)
                AS conversationCount,
              created_at AS createdAt, updated_at AS updatedAt
       FROM code_projects WHERE root_path_hash = ?
@@ -97,7 +99,8 @@ export class CodeAnalysisService {
              COUNT(d.id) AS conversationCount,
              p.created_at AS createdAt, p.updated_at AS updatedAt
       FROM code_projects p
-      LEFT JOIN analysis_documents d ON d.project_id = p.id
+      LEFT JOIN analysis_sessions s ON s.project_id = p.id
+      LEFT JOIN analysis_documents d ON d.session_id = s.id
       GROUP BY p.id
       ORDER BY p.updated_at DESC
     `,
@@ -106,14 +109,15 @@ export class CodeAnalysisService {
   }
 
   async listDocumentsByProject(projectId: string | null): Promise<AnalysisDocument[]> {
-    const whereClause = projectId === null ? 'project_id IS NULL' : 'project_id = ?';
+    const whereClause = projectId === null ? 's.project_id IS NULL' : 's.project_id = ?';
     const statement = this.deps.db.db.prepare(`
-      SELECT id, project_id AS projectId, goal, content_markdown AS contentMarkdown,
-             status, model_id AS modelId, tool_call_count AS toolCallCount,
-             created_at AS createdAt, updated_at AS updatedAt
-      FROM analysis_documents
+      SELECT d.id, d.goal, d.content_markdown AS contentMarkdown,
+             d.status, d.model_id AS modelId, d.tool_call_count AS toolCallCount,
+             d.created_at AS createdAt, d.updated_at AS updatedAt
+      FROM analysis_documents d
+      JOIN analysis_sessions s ON s.id = d.session_id
       WHERE ${whereClause}
-      ORDER BY updated_at DESC
+      ORDER BY d.updated_at DESC
     `);
     return (projectId === null ? statement.all() : statement.all(projectId)) as AnalysisDocument[];
   }
@@ -123,7 +127,7 @@ export class CodeAnalysisService {
     return this.deps.db.db
       .prepare(
         `
-      SELECT id, project_id AS projectId, goal, content_markdown AS contentMarkdown,
+      SELECT id, goal, content_markdown AS contentMarkdown,
              status, model_id AS modelId, tool_call_count AS toolCallCount,
              created_at AS createdAt, updated_at AS updatedAt
       FROM analysis_documents
@@ -144,16 +148,45 @@ export class CodeAnalysisService {
     }
 
     const docId = randomUUID();
+    const sessionUuid = randomUUID();
+    const branchUuid = randomUUID();
     const now = new Date().toISOString();
-    this.deps.db.db
-      .prepare(
-        `
-      INSERT INTO analysis_documents
-        (id, project_id, goal, content_markdown, status, tool_call_count, created_at, updated_at)
-      VALUES (?, ?, ?, '', 'running', 0, ?, ?)
-    `,
-      )
-      .run(docId, project?.id ?? null, input.goal, now, now);
+    const title = input.goal.trim().split('\n')[0].substring(0, 60) || 'Untitled';
+
+    this.deps.db.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.deps.db.db
+        .prepare(
+          `INSERT INTO analysis_sessions (id, project_id, title, status, created_at, updated_at)
+           VALUES (?, ?, ?, 'active', ?, ?)`,
+        )
+        .run(sessionUuid, project?.id ?? null, title, now, now);
+      this.deps.db.db
+        .prepare(
+          `INSERT INTO analysis_branches (id, session_id, name, created_at, updated_at)
+           VALUES (?, ?, '主分支', ?, ?)`,
+        )
+        .run(branchUuid, sessionUuid, now, now);
+      this.deps.db.db
+        .prepare(
+          `INSERT INTO analysis_documents
+            (id, session_id, branch_id, goal, content_markdown, status, tool_call_count, created_at, updated_at)
+          VALUES (?, ?, ?, ?, '', 'running', 0, ?, ?)`,
+        )
+        .run(docId, sessionUuid, branchUuid, input.goal, now, now);
+      this.deps.db.db
+        .prepare(
+          'UPDATE analysis_sessions SET active_branch_id = ?, active_document_id = ?, updated_at = ? WHERE id = ?',
+        )
+        .run(branchUuid, docId, now, sessionUuid);
+      this.deps.db.db
+        .prepare('UPDATE analysis_branches SET head_document_id = ?, updated_at = ? WHERE id = ?')
+        .run(docId, now, branchUuid);
+      this.deps.db.db.exec('COMMIT');
+    } catch (error) {
+      if (this.deps.db.db.inTransaction) this.deps.db.db.exec('ROLLBACK');
+      throw error;
+    }
 
     let outputLanguage: AppLanguage = 'zh-CN';
     try {
@@ -268,10 +301,10 @@ export class CodeAnalysisService {
         this.deps.db.db
           .prepare(
             `INSERT INTO analysis_documents
-               (id, project_id, session_id, branch_id, parent_document_id, goal, content_markdown, status, tool_call_count, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, '', 'running', 0, ?, ?)`,
+               (id, session_id, branch_id, parent_document_id, goal, content_markdown, status, tool_call_count, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, '', 'running', 0, ?, ?)`,
           )
-          .run(turnId, resolvedProjectId, sessionUuid, branchUuid, null, goal, now, now);
+          .run(turnId, sessionUuid, branchUuid, null, goal, now, now);
 
         // Update session active pointers and branch head
         this.deps.db.db
@@ -339,12 +372,11 @@ export class CodeAnalysisService {
       this.deps.db.db
         .prepare(
           `INSERT INTO analysis_documents
-             (id, project_id, session_id, branch_id, parent_document_id, goal, content_markdown, status, tool_call_count, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, '', 'running', 0, ?, ?)`,
+             (id, session_id, branch_id, parent_document_id, goal, content_markdown, status, tool_call_count, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, '', 'running', 0, ?, ?)`,
         )
         .run(
           turnId,
-          projectId ?? null,
           sessionIdResolved,
           branchIdResolved,
           effectiveParentId || null,
@@ -502,7 +534,7 @@ export class CodeAnalysisService {
     const row = this.deps.db.db
       .prepare(
         `
-      SELECT id, project_id AS projectId, goal, content_markdown AS contentMarkdown,
+      SELECT id, goal, content_markdown AS contentMarkdown,
              status, model_id AS modelId, tool_call_count AS toolCallCount,
              created_at AS createdAt, updated_at AS updatedAt
       FROM analysis_documents WHERE id = ?

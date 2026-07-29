@@ -31,9 +31,8 @@ interface BranchRow {
 
 interface DocumentRow {
   id: string;
-  projectId: string | null;
-  sessionId: string | null;
-  branchId: string | null;
+  sessionId: string;
+  branchId: string;
   parentDocumentId: string | null;
 }
 
@@ -214,9 +213,9 @@ describe('code analysis database migration', () => {
     `);
     const insertDocument = sqlite.prepare(`
       INSERT INTO analysis_documents
-        (id, project_id, session_id, branch_id, parent_document_id, goal,
+        (id, session_id, branch_id, parent_document_id, goal,
          content_markdown, status, tool_call_count, created_at, updated_at)
-      VALUES (?, NULL, ?, ?, NULL, ?, '', 'completed', 0, '2026-07-29', '2026-07-29')
+      VALUES (?, ?, ?, NULL, ?, '', 'completed', 0, '2026-07-29', '2026-07-29')
     `);
 
     for (const suffix of ['one', 'two']) {
@@ -267,7 +266,7 @@ describe('code analysis database migration', () => {
       .all() as BranchRow[];
     const documents = sqlite
       .prepare(
-        `SELECT id, project_id AS projectId, session_id AS sessionId,
+        `SELECT id, session_id AS sessionId,
                 branch_id AS branchId, parent_document_id AS parentDocumentId
          FROM analysis_documents
          ORDER BY id`,
@@ -281,7 +280,6 @@ describe('code analysis database migration', () => {
       const session = sessions.find(({ id }) => id === document.sessionId);
       const branch = branches.find(({ id }) => id === document.branchId);
       expect(session).toMatchObject({
-        projectId: document.projectId,
         activeBranchId: document.branchId,
         activeDocumentId: document.id,
       });
@@ -300,7 +298,7 @@ describe('code analysis database migration', () => {
     ]);
 
     expect(sqlite.prepare('SELECT id FROM code_projects').all()).toHaveLength(1);
-    expect(new Set(documents.map(({ projectId }) => projectId))).toHaveLength(1);
+    expect(new Set(sessions.map(({ projectId }) => projectId))).toHaveLength(1);
     expect(listIds(sqlite, 'analysis_documents')).toEqual(['doc-new', 'doc-old']);
     expect(listIds(sqlite, 'analysis_annotations')).toEqual([
       'annotation-new',
@@ -330,7 +328,7 @@ describe('code analysis database migration', () => {
            WHERE key = ?`,
         )
         .get('code_analysis_session_schema'),
-    ).toEqual({ value: '1' });
+    ).toEqual({ value: '2' });
     expect(
       sqlite
         .prepare(
@@ -340,32 +338,44 @@ describe('code analysis database migration', () => {
         .get(),
     ).toEqual({ name: 'analysis_file_cleanup_queue' });
 
+    expect(
+      sqlite
+        .prepare(
+          `SELECT name FROM pragma_table_info('analysis_documents')
+           WHERE name = 'project_id'`,
+        )
+        .get(),
+    ).toBeUndefined();
     const documentColumns = sqlite
       .prepare(
         `SELECT name, "notnull" AS isNotNull
          FROM pragma_table_info('analysis_documents')
-         WHERE name IN ('project_id', 'session_id', 'branch_id')
+         WHERE name IN ('session_id', 'branch_id')
          ORDER BY name`,
       )
       .all();
     expect(documentColumns).toEqual([
-      { name: 'branch_id', isNotNull: 0 },
-      { name: 'project_id', isNotNull: 0 },
-      { name: 'session_id', isNotNull: 0 },
+      { name: 'branch_id', isNotNull: 1 },
+      { name: 'session_id', isNotNull: 1 },
     ]);
     expect(sqlite.pragma('foreign_key_check')).toEqual([]);
     expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
 
+    const firstSession = sessions[0];
+    const firstBranch = branches.find((b) => b.sessionId === firstSession.id);
+    expect(firstBranch).toBeDefined();
     expect(() =>
       sqlite
         .prepare(
           `INSERT INTO analysis_documents
-            (id, project_id, goal, content_markdown, status, tool_call_count,
+            (id, session_id, branch_id, goal, content_markdown, status, tool_call_count,
              created_at, updated_at)
-           VALUES (?, NULL, ?, ?, 'completed', 0, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, 'completed', 0, ?, ?)`,
         )
         .run(
           'doc-local',
+          firstSession.id,
+          firstBranch!.id,
           'Local',
           '# Local',
           '2026-07-29',
@@ -398,9 +408,9 @@ describe('code analysis database migration', () => {
       sqlite
         .prepare(
           `INSERT INTO analysis_documents
-            (id, project_id, session_id, branch_id, parent_document_id, goal,
+            (id, session_id, branch_id, parent_document_id, goal,
              content_markdown, status, tool_call_count, created_at, updated_at)
-           VALUES (?, NULL, ?, ?, NULL, ?, '', 'completed', 0, ?, ?)`,
+           VALUES (?, ?, ?, NULL, ?, '', 'completed', 0, ?, ?)`,
         )
         .run(
           'document-invalid',
@@ -438,9 +448,9 @@ describe('code analysis database migration', () => {
       sqlite
         .prepare(
           `INSERT INTO analysis_documents
-            (id, project_id, session_id, branch_id, parent_document_id, goal,
+            (id, session_id, branch_id, parent_document_id, goal,
              content_markdown, status, tool_call_count, created_at, updated_at)
-           VALUES (?, NULL, 'session-one', 'branch-one', 'document-two', ?,
+           VALUES (?, 'session-one', 'branch-one', 'document-two', ?,
                    '', 'completed', 0, '2026-07-29', '2026-07-29')`,
         )
         .run('document-parent-invalid', 'Invalid'),
@@ -460,9 +470,9 @@ describe('code analysis database migration', () => {
     sqlite
       .prepare(
         `INSERT INTO analysis_documents
-          (id, project_id, session_id, branch_id, parent_document_id, goal,
+          (id, session_id, branch_id, parent_document_id, goal,
            content_markdown, status, tool_call_count, created_at, updated_at)
-         VALUES ('document-child', NULL, 'session-one', 'branch-one',
+         VALUES ('document-child', 'session-one', 'branch-one',
                  'document-one', 'Child', '', 'completed', 0,
                  '2026-07-29', '2026-07-29')`,
       )
@@ -541,10 +551,10 @@ describe('code analysis database migration', () => {
       SET head_document_id = NULL
       WHERE id = 'branch-one';
       INSERT INTO analysis_documents
-        (id, project_id, session_id, branch_id, parent_document_id, goal,
+        (id, session_id, branch_id, parent_document_id, goal,
          content_markdown, status, tool_call_count, created_at, updated_at)
       VALUES
-        ('document-child', NULL, 'session-one', 'branch-one', 'document-one',
+        ('document-child', 'session-one', 'branch-one', 'document-one',
          'Child', '', 'completed', 0, '2026-07-29', '2026-07-29');
     `);
     expect(() => moveToSessionTwo(parentDocumentDb)).toThrow(/child parent/i);
@@ -569,8 +579,7 @@ describe('code analysis database migration', () => {
         UPDATE analysis_branches
         SET head_document_id = NULL
         WHERE id = 'branch-one';
-        UPDATE analysis_documents
-        SET branch_id = NULL
+        DELETE FROM analysis_documents
         WHERE id = 'document-one';
       `);
     };
@@ -621,13 +630,13 @@ describe('code analysis database migration', () => {
       reopened
         .prepare('SELECT value FROM app_settings WHERE key = ?')
         .get('code_analysis_session_schema'),
-    ).toEqual({ value: '1' });
+    ).toEqual({ value: '2' });
     expect(reopened.pragma('foreign_key_check')).toEqual([]);
     expect(reopened.pragma('foreign_keys', { simple: true })).toBe(1);
   });
 
   it('rejects future schema versions without mutating the database', () => {
-    const sqlite = createLegacyDatabase(createPath(), '2');
+    const sqlite = createLegacyDatabase(createPath(), '3');
     const schemaBefore = sqlite
       .prepare(
         `SELECT type, name, sql
@@ -638,7 +647,7 @@ describe('code analysis database migration', () => {
       .all();
     const pragma = vi.spyOn(sqlite, 'pragma');
 
-    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(/newer schema version.*2/i);
+    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(/newer schema version.*3/i);
 
     expect(
       sqlite
@@ -658,7 +667,7 @@ describe('code analysis database migration', () => {
       sqlite
         .prepare('SELECT value FROM app_settings WHERE key = ?')
         .get('code_analysis_session_schema'),
-    ).toEqual({ value: '2' });
+    ).toEqual({ value: '3' });
   });
 
   it('rejects an unsupported non-numeric schema marker', () => {
@@ -730,12 +739,12 @@ describe('code analysis database migration', () => {
     const sqlite = openMigrated(':memory:');
     sqlite.exec(damage);
 
-    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(/invalid v1 schema/i);
+    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(/invalid v[12] schema/i);
     expect(
       sqlite
         .prepare('SELECT value FROM app_settings WHERE key = ?')
         .get('code_analysis_session_schema'),
-    ).toEqual({ value: '1' });
+    ).toEqual({ value: '2' });
     expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
   });
 
@@ -846,9 +855,22 @@ describe('code analysis database migration', () => {
     migrateCodeAnalysisSchema(sqlite);
 
     expect(
-      sqlite.prepare('SELECT project_id AS projectId FROM analysis_documents WHERE id = ?').get(
-        'doc-empty',
-      ),
+      sqlite
+        .prepare(
+          `SELECT name FROM pragma_table_info('analysis_documents')
+           WHERE name = 'project_id'`,
+        )
+        .get(),
+    ).toBeUndefined();
+    expect(
+      sqlite
+        .prepare(
+          `SELECT s.project_id AS projectId
+           FROM analysis_sessions s
+           JOIN analysis_documents d ON d.session_id = s.id
+           WHERE d.id = ?`,
+        )
+        .get('doc-empty'),
     ).toEqual({ projectId: null });
     expect(
       sqlite
@@ -1027,4 +1049,204 @@ describe('code analysis database migration', () => {
 
     sqlite.exec('ROLLBACK');
   });
+
+  it('migrates v1 schema to v2 by removing project_id and enforcing NOT NULL', () => {
+    const dbPath = createPath();
+    createLegacyDatabase(dbPath).close();
+
+    const sqlite = openMigrated(dbPath);
+
+    expect(
+      sqlite
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '2' });
+    expect(
+      sqlite
+        .prepare(
+          `SELECT name FROM pragma_table_info('analysis_documents')
+           WHERE name = 'project_id'`,
+        )
+        .get(),
+    ).toBeUndefined();
+    const documentColumns = sqlite
+      .prepare(
+        `SELECT name, "notnull" AS isNotNull
+         FROM pragma_table_info('analysis_documents')
+         WHERE name IN ('session_id', 'branch_id')
+         ORDER BY name`,
+      )
+      .all();
+    expect(documentColumns).toEqual([
+      { name: 'branch_id', isNotNull: 1 },
+      { name: 'session_id', isNotNull: 1 },
+    ]);
+    expect(
+      hasSchemaObject(sqlite, 'index', 'idx_analysis_documents_project'),
+    ).toBe(false);
+    expect(sqlite.pragma('foreign_key_check')).toEqual([]);
+    expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it('migrates a fresh database directly to v2', () => {
+    const sqlite = track(new Database(':memory:'));
+    sqlite.pragma('foreign_keys = ON');
+    sqlite.exec(`
+      CREATE TABLE code_projects (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        root_path TEXT NOT NULL,
+        root_path_hash TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `);
+
+    migrateCodeAnalysisSchema(sqlite);
+
+    expect(
+      sqlite
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '2' });
+    expect(
+      sqlite
+        .prepare(
+          `SELECT name FROM pragma_table_info('analysis_documents')
+           WHERE name = 'project_id'`,
+        )
+        .get(),
+    ).toBeUndefined();
+    expect(
+      sqlite
+        .prepare(
+          `SELECT name, "notnull" AS isNotNull
+           FROM pragma_table_info('analysis_documents')
+           WHERE name IN ('session_id', 'branch_id')
+           ORDER BY name`,
+        )
+        .all(),
+    ).toEqual([
+      { name: 'branch_id', isNotNull: 1 },
+      { name: 'session_id', isNotNull: 1 },
+    ]);
+    expect(sqlite.pragma('foreign_key_check')).toEqual([]);
+  });
+
+  it('is idempotent when v2 migration runs twice', () => {
+    const dbPath = createPath();
+    createLegacyDatabase(dbPath).close();
+
+    const first = openMigrated(dbPath);
+    const originalSessions = listIds(first, 'analysis_sessions');
+    const originalBranches = listIds(first, 'analysis_branches');
+    const originalDocuments = listIds(first, 'analysis_documents');
+    first.close();
+
+    const reopened = openMigrated(dbPath);
+
+    expect(listIds(reopened, 'analysis_sessions')).toEqual(originalSessions);
+    expect(listIds(reopened, 'analysis_branches')).toEqual(originalBranches);
+    expect(listIds(reopened, 'analysis_documents')).toEqual(originalDocuments);
+    expect(
+      reopened
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '2' });
+    expect(reopened.pragma('foreign_key_check')).toEqual([]);
+    expect(reopened.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it('rolls back v2 migration on failure while preserving v1 data', () => {
+    const sqlite = createLegacyDatabase(createPath());
+    let callCount = 0;
+    const options: CodeAnalysisMigrationOptions = {
+      beforeCommit: () => {
+        callCount++;
+        if (callCount === 2) {
+          throw new Error('forced v2 failure');
+        }
+      },
+    };
+
+    expect(() => migrateCodeAnalysisSchema(sqlite, options)).toThrow('forced v2 failure');
+
+    expect(
+      sqlite
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '1' });
+    expect(listIds(sqlite, 'analysis_documents')).toEqual(['doc-new', 'doc-old']);
+    expect(sqlite.pragma('foreign_key_check')).toEqual([]);
+    expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it('validates v2 schema rejects missing NOT NULL constraint', () => {
+    const dbPath = createPath();
+    createLegacyDatabase(dbPath).close();
+    const sqlite = openMigrated(dbPath);
+
+    sqlite.exec(`
+      DROP TRIGGER IF EXISTS trg_analysis_sessions_validate_insert;
+      DROP TRIGGER IF EXISTS trg_analysis_sessions_validate_update;
+      DROP TRIGGER IF EXISTS trg_analysis_branches_validate_insert;
+      DROP TRIGGER IF EXISTS trg_analysis_branches_validate_update;
+      DROP TRIGGER IF EXISTS trg_analysis_documents_validate_insert;
+      DROP TRIGGER IF EXISTS trg_analysis_documents_validate_update;
+      CREATE TABLE analysis_documents_v2 (
+        id TEXT PRIMARY KEY,
+        session_id TEXT REFERENCES analysis_sessions(id) ON DELETE CASCADE,
+        branch_id TEXT NOT NULL REFERENCES analysis_branches(id) ON DELETE CASCADE,
+        parent_document_id TEXT,
+        goal TEXT NOT NULL,
+        content_markdown TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'pending',
+        model_id TEXT,
+        tool_call_count INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      INSERT INTO analysis_documents_v2
+        SELECT id, session_id, branch_id, parent_document_id, goal,
+               content_markdown, status, model_id, tool_call_count, created_at, updated_at
+        FROM analysis_documents;
+      DROP TABLE analysis_documents;
+      ALTER TABLE analysis_documents_v2 RENAME TO analysis_documents;
+    `);
+
+    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(
+      /analysis_documents\.session_id should be NOT NULL/i,
+    );
+  });
+
+  it('validates v2 schema rejects stale trigger definitions', () => {
+    const dbPath = createPath();
+    createLegacyDatabase(dbPath).close();
+    const sqlite = openMigrated(dbPath);
+
+    sqlite.exec(`
+      DROP TRIGGER trg_analysis_documents_validate_update;
+      CREATE TRIGGER trg_analysis_documents_validate_update
+      BEFORE UPDATE ON analysis_documents
+      BEGIN
+        SELECT 1;
+      END
+    `);
+
+    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(/invalid v2 schema/i);
+  });
+
+  function hasSchemaObject(
+    sqlite: Database.Database,
+    type: 'index' | 'table',
+    name: string,
+  ): boolean {
+    return Boolean(
+      sqlite
+        .prepare(
+          `SELECT 1 FROM sqlite_master WHERE type = ? AND name = ?`,
+        )
+        .get(type, name),
+    );
+  }
 });

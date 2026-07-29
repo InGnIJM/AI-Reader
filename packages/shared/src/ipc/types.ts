@@ -262,7 +262,6 @@ export interface CodeAnalysisRunPayload {
 
 export interface CodeAnalysisDocumentData {
   id: string;
-  projectId: string | null;
   goal: string;
   contentMarkdown: string;
   status: CodeAnalysisStatus;

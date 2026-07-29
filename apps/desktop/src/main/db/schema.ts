@@ -250,17 +250,16 @@ export const analysisDocuments = sqliteTable(
   'analysis_documents',
   {
     id: text('id').primaryKey(),
-    projectId: text('project_id').references(() => codeProjects.id, {
-      onDelete: 'cascade',
-    }),
-    sessionId: text('session_id').references(
-      (): AnySQLiteColumn => analysisSessions.id,
-      { onDelete: 'cascade' },
-    ),
-    branchId: text('branch_id').references(
-      (): AnySQLiteColumn => analysisBranches.id,
-      { onDelete: 'cascade' },
-    ),
+    sessionId: text('session_id')
+      .notNull()
+      .references((): AnySQLiteColumn => analysisSessions.id, {
+        onDelete: 'cascade',
+      }),
+    branchId: text('branch_id')
+      .notNull()
+      .references((): AnySQLiteColumn => analysisBranches.id, {
+        onDelete: 'cascade',
+      }),
     parentDocumentId: text('parent_document_id').references(
       (): AnySQLiteColumn => analysisDocuments.id,
       { onDelete: 'cascade' },
@@ -274,7 +273,6 @@ export const analysisDocuments = sqliteTable(
     updatedAt: text('updated_at').notNull(),
   },
   (table) => ({
-    projectIndex: index('idx_analysis_documents_project').on(table.projectId),
     sessionIndex: index('idx_analysis_documents_session').on(
       table.sessionId,
       table.createdAt,

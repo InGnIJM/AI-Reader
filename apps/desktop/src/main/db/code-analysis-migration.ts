@@ -3,7 +3,7 @@ import { parse, resolve } from 'path';
 import type Database from 'better-sqlite3';
 
 const SESSION_SCHEMA_KEY = 'code_analysis_session_schema';
-const SESSION_SCHEMA_VERSION = '1';
+const SESSION_SCHEMA_VERSION = '2';
 const PRESERVED_TABLES = [
   'analysis_documents',
   'analysis_annotations',
@@ -121,6 +121,115 @@ const REQUIRED_V1_TRIGGERS: Record<string, string[]> = {
   ],
 };
 
+const REQUIRED_V2_COLUMNS: Record<string, string[]> = {
+  analysis_sessions: [
+    'id',
+    'project_id',
+    'title',
+    'status',
+    'active_branch_id',
+    'active_document_id',
+    'archived_at',
+    'created_at',
+    'updated_at',
+  ],
+  analysis_branches: [
+    'id',
+    'session_id',
+    'name',
+    'parent_branch_id',
+    'forked_from_document_id',
+    'head_document_id',
+    'created_at',
+    'updated_at',
+  ],
+  analysis_documents: [
+    'id',
+    'session_id',
+    'branch_id',
+    'parent_document_id',
+    'goal',
+    'content_markdown',
+    'status',
+    'model_id',
+    'tool_call_count',
+    'created_at',
+    'updated_at',
+  ],
+  analysis_tool_traces: [
+    'id',
+    'analysis_document_id',
+    'step_index',
+    'tool_name',
+    'tool_args_json',
+    'result_summary',
+    'created_at',
+  ],
+  analysis_annotations: [
+    'id',
+    'analysis_document_id',
+    'anchor_start_offset',
+    'anchor_end_offset',
+    'anchor_exact_text',
+    'selected_text',
+    'anchor_prefix',
+    'anchor_suffix',
+    'question',
+    'status',
+    'created_at',
+    'updated_at',
+  ],
+  analysis_discussion_messages: [
+    'id',
+    'annotation_id',
+    'role',
+    'content',
+    'model_id',
+    'created_at',
+  ],
+  analysis_file_cleanup_queue: [
+    'id',
+    'document_id',
+    'relative_path',
+    'attempts',
+    'last_error',
+    'created_at',
+    'updated_at',
+  ],
+};
+const REQUIRED_V2_INDEXES = [
+  'ux_code_projects_root_path_hash',
+  'idx_analysis_sessions_project_status_updated',
+  'idx_analysis_branches_session',
+  'idx_analysis_documents_session',
+  'idx_analysis_documents_branch',
+  'idx_analysis_documents_parent',
+  'idx_analysis_tool_traces_document',
+  'idx_analysis_annotations_document',
+  'idx_analysis_discussion_messages_annotation',
+  'idx_analysis_file_cleanup_queue_created',
+];
+const REQUIRED_V2_TRIGGERS: Record<string, string[]> = {
+  trg_analysis_sessions_validate_insert: ['active_branch_id', 'active_document_id'],
+  trg_analysis_sessions_validate_update: ['active_branch_id', 'active_document_id'],
+  trg_analysis_branches_validate_insert: [
+    'parent_branch_id',
+    'forked_from_document_id',
+    'head_document_id',
+  ],
+  trg_analysis_branches_validate_update: [
+    'active_branch_id = old.id',
+    'parent_branch_id = old.id',
+  ],
+  trg_analysis_documents_validate_insert: ['branch_id', 'parent_document_id'],
+  trg_analysis_documents_validate_update: [
+    'active_document_id = old.id',
+    'head_document_id = old.id',
+    'forked_from_document_id = old.id',
+    'parent_document_id = old.id',
+  ],
+};
+
 type PreservedCounts = Record<(typeof PRESERVED_TABLES)[number], number>;
 
 interface ProjectRow {
@@ -165,21 +274,37 @@ export function migrateCodeAnalysisSchema(
   }
 
   const schemaVersion = readSchemaVersion(sqlite);
-  if (schemaVersion !== undefined && schemaVersion !== '0' && schemaVersion !== '1') {
+  if (
+    schemaVersion !== undefined &&
+    schemaVersion !== '0' &&
+    schemaVersion !== '1' &&
+    schemaVersion !== '2'
+  ) {
     const numericVersion = Number(schemaVersion);
-    if (Number.isInteger(numericVersion) && numericVersion > 1) {
+    if (Number.isInteger(numericVersion) && numericVersion > 2) {
       throw new Error(
-        `Database uses newer schema version ${schemaVersion}; supported version is 1`,
+        `Database uses newer schema version ${schemaVersion}; supported version is 2`,
       );
     }
     throw new Error(`Unsupported code analysis schema version: ${schemaVersion}`);
   }
-  if (schemaVersion === SESSION_SCHEMA_VERSION) {
-    validateV1Schema(sqlite);
+  if (schemaVersion === '2') {
+    validateV2Schema(sqlite);
     restoreForeignKeys(sqlite);
     return;
   }
 
+  if (schemaVersion === undefined || schemaVersion === '0') {
+    migrateToV1(sqlite, options);
+  }
+
+  migrateToV2(sqlite, options);
+}
+
+function migrateToV1(
+  sqlite: Database.Database,
+  options: CodeAnalysisMigrationOptions,
+): void {
   const preservedCounts = snapshotPreservedCounts(sqlite);
   try {
     sqlite.pragma('foreign_keys = OFF');
@@ -209,7 +334,7 @@ export function migrateCodeAnalysisSchema(
     }
     assertPreservedCounts(sqlite, preservedCounts);
 
-    writeSchemaVersion(sqlite);
+    writeSchemaVersion(sqlite, '1');
     sqlite.exec('COMMIT');
   } catch (error) {
     if (sqlite.inTransaction) sqlite.exec('ROLLBACK');
@@ -217,6 +342,412 @@ export function migrateCodeAnalysisSchema(
   } finally {
     restoreForeignKeys(sqlite);
   }
+}
+
+function migrateToV2(
+  sqlite: Database.Database,
+  options: CodeAnalysisMigrationOptions,
+): void {
+  validateV1Schema(sqlite);
+
+  const preservedCounts = snapshotPreservedCounts(sqlite);
+  try {
+    sqlite.pragma('foreign_keys = OFF');
+    if (sqlite.pragma('foreign_keys', { simple: true }) !== 0) {
+      throw new Error('Failed to disable SQLite foreign key enforcement');
+    }
+    sqlite.exec('BEGIN IMMEDIATE');
+
+    dropExistingTriggers(sqlite);
+    rebuildDocumentsForV2(sqlite);
+    createV2Indexes(sqlite);
+    createV2Triggers(sqlite);
+
+    options.beforeCommit?.();
+    const foreignKeyErrors = sqlite.pragma('foreign_key_check') as unknown[];
+    if (foreignKeyErrors.length > 0) {
+      throw new Error(
+        `Code analysis migration failed foreign key check: ${JSON.stringify(
+          foreignKeyErrors,
+        )}`,
+      );
+    }
+    assertPreservedCounts(sqlite, preservedCounts);
+
+    writeSchemaVersion(sqlite, '2');
+    sqlite.exec('COMMIT');
+  } catch (error) {
+    if (sqlite.inTransaction) sqlite.exec('ROLLBACK');
+    throw error;
+  } finally {
+    restoreForeignKeys(sqlite);
+  }
+}
+
+function dropExistingTriggers(sqlite: Database.Database): void {
+  sqlite.exec(`
+    DROP TRIGGER IF EXISTS trg_analysis_sessions_validate_insert;
+    DROP TRIGGER IF EXISTS trg_analysis_sessions_validate_update;
+    DROP TRIGGER IF EXISTS trg_analysis_branches_validate_insert;
+    DROP TRIGGER IF EXISTS trg_analysis_branches_validate_update;
+    DROP TRIGGER IF EXISTS trg_analysis_documents_validate_insert;
+    DROP TRIGGER IF EXISTS trg_analysis_documents_validate_update;
+  `);
+}
+
+function rebuildDocumentsForV2(sqlite: Database.Database): void {
+  if (
+    !hasColumn(sqlite, 'analysis_documents', 'project_id') &&
+    isColumnNotNull(sqlite, 'analysis_documents', 'session_id') &&
+    isColumnNotNull(sqlite, 'analysis_documents', 'branch_id')
+  ) {
+    return;
+  }
+
+  sqlite.exec(`
+    CREATE TABLE analysis_documents_v2 (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES analysis_sessions(id) ON DELETE CASCADE,
+      branch_id TEXT NOT NULL REFERENCES analysis_branches(id) ON DELETE CASCADE,
+      parent_document_id TEXT
+        REFERENCES analysis_documents(id) ON DELETE CASCADE,
+      goal TEXT NOT NULL,
+      content_markdown TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending',
+      model_id TEXT,
+      tool_call_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    INSERT INTO analysis_documents_v2
+      (id, session_id, branch_id, parent_document_id, goal,
+       content_markdown, status, model_id, tool_call_count, created_at, updated_at)
+    SELECT id, session_id, branch_id, parent_document_id, goal,
+           content_markdown, status, model_id, tool_call_count, created_at, updated_at
+    FROM analysis_documents;
+    DROP TABLE analysis_documents;
+    ALTER TABLE analysis_documents_v2 RENAME TO analysis_documents;
+  `);
+}
+
+function createV2Indexes(sqlite: Database.Database): void {
+  sqlite.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_code_projects_root_path_hash
+      ON code_projects(root_path_hash);
+    CREATE INDEX IF NOT EXISTS idx_analysis_sessions_project_status_updated
+      ON analysis_sessions(project_id, status, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_analysis_branches_session
+      ON analysis_branches(session_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_analysis_documents_session
+      ON analysis_documents(session_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_analysis_documents_branch
+      ON analysis_documents(branch_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_analysis_documents_parent
+      ON analysis_documents(parent_document_id);
+    CREATE INDEX IF NOT EXISTS idx_analysis_tool_traces_document
+      ON analysis_tool_traces(analysis_document_id);
+    CREATE INDEX IF NOT EXISTS idx_analysis_annotations_document
+      ON analysis_annotations(analysis_document_id);
+    CREATE INDEX IF NOT EXISTS idx_analysis_discussion_messages_annotation
+      ON analysis_discussion_messages(annotation_id);
+    CREATE INDEX IF NOT EXISTS idx_analysis_file_cleanup_queue_created
+      ON analysis_file_cleanup_queue(created_at);
+  `);
+}
+
+function createV2Triggers(sqlite: Database.Database): void {
+  sqlite.exec(`
+    DROP TRIGGER IF EXISTS trg_analysis_sessions_validate_insert;
+    DROP TRIGGER IF EXISTS trg_analysis_sessions_validate_update;
+    DROP TRIGGER IF EXISTS trg_analysis_branches_validate_insert;
+    DROP TRIGGER IF EXISTS trg_analysis_branches_validate_update;
+    DROP TRIGGER IF EXISTS trg_analysis_documents_validate_insert;
+    DROP TRIGGER IF EXISTS trg_analysis_documents_validate_update;
+
+    CREATE TRIGGER trg_analysis_sessions_validate_insert
+    BEFORE INSERT ON analysis_sessions
+    BEGIN
+      SELECT CASE
+        WHEN NEW.active_branch_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM analysis_branches
+            WHERE id = NEW.active_branch_id AND session_id = NEW.id
+          )
+        THEN RAISE(ABORT, 'analysis session active branch session mismatch')
+      END;
+      SELECT CASE
+        WHEN NEW.active_document_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM analysis_documents
+            WHERE id = NEW.active_document_id AND session_id = NEW.id
+          )
+        THEN RAISE(ABORT, 'analysis session active document session mismatch')
+      END;
+    END;
+
+    CREATE TRIGGER trg_analysis_sessions_validate_update
+    BEFORE UPDATE ON analysis_sessions
+    BEGIN
+      SELECT CASE
+        WHEN NEW.active_branch_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM analysis_branches
+            WHERE id = NEW.active_branch_id AND session_id = NEW.id
+          )
+        THEN RAISE(ABORT, 'analysis session active branch session mismatch')
+      END;
+      SELECT CASE
+        WHEN NEW.active_document_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM analysis_documents
+            WHERE id = NEW.active_document_id AND session_id = NEW.id
+          )
+        THEN RAISE(ABORT, 'analysis session active document session mismatch')
+      END;
+    END;
+
+    CREATE TRIGGER trg_analysis_branches_validate_insert
+    BEFORE INSERT ON analysis_branches
+    BEGIN
+      SELECT CASE
+        WHEN NEW.parent_branch_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM analysis_branches
+            WHERE id = NEW.parent_branch_id AND session_id = NEW.session_id
+          )
+        THEN RAISE(ABORT, 'analysis branch parent session mismatch')
+      END;
+      SELECT CASE
+        WHEN NEW.forked_from_document_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM analysis_documents
+            WHERE id = NEW.forked_from_document_id AND session_id = NEW.session_id
+          )
+        THEN RAISE(ABORT, 'analysis branch fork document session mismatch')
+      END;
+      SELECT CASE
+        WHEN NEW.head_document_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM analysis_documents
+            WHERE id = NEW.head_document_id AND branch_id = NEW.id
+          )
+        THEN RAISE(ABORT, 'analysis branch head branch mismatch')
+      END;
+    END;
+
+    CREATE TRIGGER trg_analysis_branches_validate_update
+    BEFORE UPDATE ON analysis_branches
+    BEGIN
+      SELECT CASE
+        WHEN NEW.parent_branch_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM analysis_branches
+            WHERE id = NEW.parent_branch_id AND session_id = NEW.session_id
+          )
+        THEN RAISE(ABORT, 'analysis branch parent session mismatch')
+      END;
+      SELECT CASE
+        WHEN NEW.forked_from_document_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM analysis_documents
+            WHERE id = NEW.forked_from_document_id AND session_id = NEW.session_id
+          )
+        THEN RAISE(ABORT, 'analysis branch fork document session mismatch')
+      END;
+      SELECT CASE
+        WHEN NEW.head_document_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM analysis_documents
+            WHERE id = NEW.head_document_id AND branch_id = NEW.id
+          )
+        THEN RAISE(ABORT, 'analysis branch head branch mismatch')
+      END;
+      SELECT CASE
+        WHEN EXISTS (
+          SELECT 1 FROM analysis_documents
+          WHERE branch_id = NEW.id AND session_id IS NOT NEW.session_id
+        )
+        THEN RAISE(ABORT, 'analysis branch turn session mismatch')
+      END;
+      SELECT CASE
+        WHEN EXISTS (
+          SELECT 1 FROM analysis_sessions
+          WHERE active_branch_id = OLD.id AND id IS NOT NEW.session_id
+        )
+        THEN RAISE(ABORT, 'analysis session active branch reverse mismatch')
+      END;
+      SELECT CASE
+        WHEN EXISTS (
+          SELECT 1 FROM analysis_branches
+          WHERE parent_branch_id = OLD.id AND session_id IS NOT NEW.session_id
+        )
+        THEN RAISE(ABORT, 'analysis branch child branch session mismatch')
+      END;
+    END;
+
+    CREATE TRIGGER trg_analysis_documents_validate_insert
+    BEFORE INSERT ON analysis_documents
+    BEGIN
+      SELECT CASE
+        WHEN NOT EXISTS (
+          SELECT 1 FROM analysis_branches
+          WHERE id = NEW.branch_id AND session_id = NEW.session_id
+        )
+        THEN RAISE(ABORT, 'analysis turn branch session mismatch')
+      END;
+      SELECT CASE
+        WHEN NEW.parent_document_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM analysis_documents
+            WHERE id = NEW.parent_document_id AND session_id = NEW.session_id
+          )
+        THEN RAISE(ABORT, 'analysis turn parent session mismatch')
+      END;
+      SELECT CASE
+        WHEN NEW.parent_document_id = NEW.id
+        THEN RAISE(ABORT, 'analysis turn parent cycle')
+      END;
+    END;
+
+    CREATE TRIGGER trg_analysis_documents_validate_update
+    BEFORE UPDATE ON analysis_documents
+    BEGIN
+      SELECT CASE
+        WHEN NOT EXISTS (
+          SELECT 1 FROM analysis_branches
+          WHERE id = NEW.branch_id AND session_id = NEW.session_id
+        )
+        THEN RAISE(ABORT, 'analysis turn branch session mismatch')
+      END;
+      SELECT CASE
+        WHEN NEW.parent_document_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM analysis_documents
+            WHERE id = NEW.parent_document_id AND session_id = NEW.session_id
+          )
+        THEN RAISE(ABORT, 'analysis turn parent session mismatch')
+      END;
+      SELECT CASE
+        WHEN NEW.parent_document_id = NEW.id
+        THEN RAISE(ABORT, 'analysis turn parent cycle')
+      END;
+      SELECT CASE
+        WHEN NEW.parent_document_id IS NOT NULL
+          AND EXISTS (
+            WITH RECURSIVE ancestors(id, parent_document_id) AS (
+              SELECT id, parent_document_id
+              FROM analysis_documents
+              WHERE id = NEW.parent_document_id
+              UNION ALL
+              SELECT document.id, document.parent_document_id
+              FROM analysis_documents AS document
+              JOIN ancestors
+                ON document.id = ancestors.parent_document_id
+              WHERE ancestors.parent_document_id IS NOT NULL
+            )
+            SELECT 1 FROM ancestors WHERE id = NEW.id
+          )
+        THEN RAISE(ABORT, 'analysis turn parent cycle')
+      END;
+      SELECT CASE
+        WHEN EXISTS (
+          SELECT 1 FROM analysis_sessions
+          WHERE active_document_id = OLD.id AND id IS NOT NEW.session_id
+        )
+        THEN RAISE(ABORT, 'analysis session active document reverse mismatch')
+      END;
+      SELECT CASE
+        WHEN EXISTS (
+          SELECT 1 FROM analysis_branches
+          WHERE head_document_id = OLD.id AND id IS NOT NEW.branch_id
+        )
+        THEN RAISE(ABORT, 'analysis branch head reverse mismatch')
+      END;
+      SELECT CASE
+        WHEN EXISTS (
+          SELECT 1 FROM analysis_branches
+          WHERE forked_from_document_id = OLD.id
+            AND session_id IS NOT NEW.session_id
+        )
+        THEN RAISE(ABORT, 'analysis branch fork document reverse mismatch')
+      END;
+      SELECT CASE
+        WHEN EXISTS (
+          SELECT 1 FROM analysis_documents
+          WHERE parent_document_id = OLD.id AND session_id IS NOT NEW.session_id
+        )
+        THEN RAISE(ABORT, 'analysis turn child parent session mismatch')
+      END;
+    END;
+  `);
+}
+
+function validateV2Schema(sqlite: Database.Database): void {
+  const errors: string[] = [];
+  for (const [table, requiredColumns] of Object.entries(REQUIRED_V2_COLUMNS)) {
+    if (!hasTable(sqlite, table)) {
+      errors.push(`missing table ${table}`);
+      continue;
+    }
+    const columns = new Set(
+      (
+        sqlite.prepare(`SELECT name FROM pragma_table_info(?)`).all(table) as Array<{
+          name: string;
+        }>
+      ).map(({ name }) => name),
+    );
+    for (const column of requiredColumns) {
+      if (!columns.has(column)) errors.push(`missing column ${table}.${column}`);
+    }
+  }
+  if (hasColumn(sqlite, 'analysis_documents', 'project_id')) {
+    errors.push('analysis_documents should not have project_id');
+  }
+  for (const column of ['session_id', 'branch_id']) {
+    if (!isColumnNotNull(sqlite, 'analysis_documents', column)) {
+      errors.push(`analysis_documents.${column} should be NOT NULL`);
+    }
+  }
+  for (const index of REQUIRED_V2_INDEXES) {
+    if (!hasSchemaObject(sqlite, 'index', index)) errors.push(`missing index ${index}`);
+  }
+  if (hasSchemaObject(sqlite, 'index', 'idx_analysis_documents_project')) {
+    errors.push('idx_analysis_documents_project should not exist');
+  }
+  for (const [trigger, requiredFragments] of Object.entries(REQUIRED_V2_TRIGGERS)) {
+    const row = sqlite
+      .prepare(
+        `SELECT sql
+         FROM sqlite_master
+         WHERE type = 'trigger' AND name = ?`,
+      )
+      .get(trigger) as { sql: string | null } | undefined;
+    if (!row?.sql) {
+      errors.push(`missing trigger ${trigger}`);
+      continue;
+    }
+    const normalizedSql = row.sql.toLowerCase().replace(/\s+/g, ' ');
+    for (const fragment of requiredFragments) {
+      if (!normalizedSql.includes(fragment)) {
+        errors.push(`stale trigger ${trigger}`);
+        break;
+      }
+    }
+  }
+  if (errors.length > 0) {
+    throw new Error(`Invalid v2 schema: ${errors.join(', ')}`);
+  }
+}
+
+function isColumnNotNull(sqlite: Database.Database, table: string, column: string): boolean {
+  const info = sqlite
+    .prepare(
+      `SELECT "notnull" AS isNotNull
+       FROM pragma_table_info(?)
+       WHERE name = ?`,
+    )
+    .get(table, column) as { isNotNull: number } | undefined;
+  return info?.isNotNull === 1;
 }
 
 function validateV1Schema(sqlite: Database.Database): void {
@@ -303,7 +834,7 @@ function readSchemaVersion(sqlite: Database.Database): string | undefined {
   )?.value;
 }
 
-function writeSchemaVersion(sqlite: Database.Database): void {
+function writeSchemaVersion(sqlite: Database.Database, version?: string): void {
   sqlite
     .prepare(
       `INSERT INTO app_settings (key, value, updated_at)
@@ -312,7 +843,7 @@ function writeSchemaVersion(sqlite: Database.Database): void {
          value = excluded.value,
          updated_at = excluded.updated_at`,
     )
-    .run(SESSION_SCHEMA_KEY, SESSION_SCHEMA_VERSION, new Date().toISOString());
+    .run(SESSION_SCHEMA_KEY, version ?? SESSION_SCHEMA_VERSION, new Date().toISOString());
 }
 
 function restoreForeignKeys(sqlite: Database.Database): void {

@@ -57,7 +57,6 @@ const TRANSITIONAL_TABLES = [
     sqlName: 'analysis_documents',
     columns: [
       'id',
-      'project_id',
       'session_id',
       'branch_id',
       'parent_document_id',
@@ -70,9 +69,6 @@ const TRANSITIONAL_TABLES = [
       'updated_at',
     ],
     nullable: [
-      'project_id',
-      'session_id',
-      'branch_id',
       'parent_document_id',
       'model_id',
     ],
@@ -415,10 +411,18 @@ describe('code-analysis database schema', () => {
     const now = new Date().toISOString();
 
     db.db.prepare(`
-      INSERT INTO analysis_documents
-        (id, goal, created_at, updated_at)
+      INSERT INTO analysis_sessions (id, title, created_at, updated_at)
       VALUES (?, ?, ?, ?)
-    `).run('doc-default', 'Default selected text', now, now);
+    `).run('session-default', 'Default Session', now, now);
+    db.db.prepare(`
+      INSERT INTO analysis_branches (id, session_id, name, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run('branch-default', 'session-default', 'Main', now, now);
+    db.db.prepare(`
+      INSERT INTO analysis_documents
+        (id, session_id, branch_id, goal, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run('doc-default', 'session-default', 'branch-default', 'Default selected text', now, now);
     db.db.prepare(`
       INSERT INTO analysis_annotations
         (id, analysis_document_id, anchor_start_offset, anchor_end_offset,
@@ -528,12 +532,20 @@ describe('code-analysis database schema', () => {
       INSERT INTO code_projects (id, name, root_path, root_path_hash, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run('project-1', 'AI-Reader', 'E:/code/AI-Reader', 'hash-1', now, now);
+    db.db.prepare(`
+      INSERT INTO analysis_sessions (id, project_id, title, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run('session-1', 'project-1', 'Test Session', now, now);
+    db.db.prepare(`
+      INSERT INTO analysis_branches (id, session_id, name, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run('branch-1', 'session-1', 'Main', now, now);
 
     db.db.prepare(`
       INSERT INTO analysis_documents
-        (id, project_id, goal, content_markdown, status, model_id, tool_call_count, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run('doc-1', 'project-1', 'Analyze architecture', '# Result', 'completed', 'gpt-test', 2, now, now);
+        (id, session_id, branch_id, goal, content_markdown, status, model_id, tool_call_count, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run('doc-1', 'session-1', 'branch-1', 'Analyze architecture', '# Result', 'completed', 'gpt-test', 2, now, now);
 
     db.db.prepare(`
       INSERT INTO analysis_tool_traces

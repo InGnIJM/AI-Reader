@@ -8,6 +8,8 @@ import type { AnalysisDocument } from './types';
 export interface AireaderCodeAnalysisExport {
   schemaVersion: 1;
   type: 'code-analysis-document';
+  sessionId: string;
+  sessionTitle: string;
   sourceDirectoryName: string;
   sourceDirectoryPathHash: string;
   analysisGoal: string;
@@ -44,6 +46,8 @@ interface ExportDocumentRow {
   contentMarkdown: string;
   modelId?: string;
   createdAt: string;
+  sessionId: string;
+  sessionTitle: string;
   projectName: string | null;
   rootPathHash: string | null;
 }
@@ -57,7 +61,7 @@ export class AnalysisExportService {
   async exportMarkdown(documentId: string): Promise<string> {
     const document = this.getExportDocument(documentId);
     const annotations = this.listAnnotations(documentId);
-    const sections = [`# ${document.goal}`, '', document.contentMarkdown, '', '## Comments'];
+    const sections = [`# ${document.sessionTitle}`, '', `## ${document.goal}`, '', document.contentMarkdown, '', '## Comments'];
 
     annotations.forEach((annotation, index) => {
       const messages = this.listMessages(annotation.id);
@@ -87,6 +91,8 @@ export class AnalysisExportService {
     return {
       schemaVersion: 1,
       type: 'code-analysis-document',
+      sessionId: document.sessionId,
+      sessionTitle: document.sessionTitle,
       sourceDirectoryName: document.projectName ?? 'No Project',
       sourceDirectoryPathHash: document.rootPathHash ?? '',
       analysisGoal: document.goal,
@@ -108,25 +114,66 @@ export class AnalysisExportService {
 
     const now = new Date().toISOString();
     const documentId = randomUUID();
+    const sessionId = randomUUID();
+    const branchId = randomUUID();
 
-    this.db.db
-      .prepare(
-        `
-      INSERT INTO analysis_documents
-        (id, project_id, goal, content_markdown, status, model_id, tool_call_count, created_at, updated_at)
-      VALUES (?, ?, ?, ?, 'completed', ?, ?, ?, ?)
-    `,
-      )
-      .run(
-        documentId,
-        null,
-        payload.analysisGoal,
-        payload.analysisMarkdown,
-        payload.modelInfo.modelId ?? null,
-        payload.toolTrace.length,
-        payload.createdAt,
-        now,
-      );
+    // Create session + branch + turn in one transaction
+    this.db.db.exec('BEGIN IMMEDIATE');
+    try {
+      // 1. Create session (active pointers set after document exists)
+      this.db.db
+        .prepare(
+          `INSERT INTO analysis_sessions
+            (id, project_id, title, status, active_branch_id, active_document_id, created_at, updated_at)
+           VALUES (?, NULL, ?, 'active', NULL, NULL, ?, ?)`,
+        )
+        .run(sessionId, payload.sessionTitle ?? 'Imported Session', now, now);
+
+      // 2. Create main branch (head_document_id set after document exists)
+      this.db.db
+        .prepare(
+          `INSERT INTO analysis_branches
+            (id, session_id, name, parent_branch_id, forked_from_document_id, head_document_id, created_at, updated_at)
+           VALUES (?, ?, '主分支', NULL, NULL, NULL, ?, ?)`,
+        )
+        .run(branchId, sessionId, now, now);
+
+      // 3. Create the turn (document)
+      this.db.db
+        .prepare(
+          `INSERT INTO analysis_documents
+            (id, session_id, branch_id, goal, content_markdown, status, model_id, tool_call_count, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?)`,
+        )
+        .run(
+          documentId,
+          sessionId,
+          branchId,
+          payload.analysisGoal,
+          payload.analysisMarkdown,
+          payload.modelInfo.modelId ?? null,
+          payload.toolTrace.length,
+          payload.createdAt,
+          now,
+        );
+
+      // 4. Update branch head
+      this.db.db
+        .prepare('UPDATE analysis_branches SET head_document_id = ?, updated_at = ? WHERE id = ?')
+        .run(documentId, now, branchId);
+
+      // 5. Update session active pointers
+      this.db.db
+        .prepare(
+          'UPDATE analysis_sessions SET active_branch_id = ?, active_document_id = ?, updated_at = ? WHERE id = ?',
+        )
+        .run(branchId, documentId, now, sessionId);
+
+      this.db.db.exec('COMMIT');
+    } catch (error) {
+      if (this.db.db.inTransaction) this.db.db.exec('ROLLBACK');
+      throw error;
+    }
 
     const annotationIdMap = new Map<string, string>();
     const annotationInsert = this.db.db.prepare(`
@@ -190,7 +237,7 @@ export class AnalysisExportService {
     const row = this.db.db
       .prepare(
         `
-      SELECT id, project_id AS projectId, goal, content_markdown AS contentMarkdown,
+      SELECT id, goal, content_markdown AS contentMarkdown,
              status, model_id AS modelId, tool_call_count AS toolCallCount,
              created_at AS createdAt, updated_at AS updatedAt
       FROM analysis_documents WHERE id = ?
@@ -211,9 +258,12 @@ export class AnalysisExportService {
       .prepare(
         `
       SELECT d.id, d.goal, d.content_markdown AS contentMarkdown, d.model_id AS modelId,
-             d.created_at AS createdAt, p.name AS projectName, p.root_path_hash AS rootPathHash
+             d.created_at AS createdAt,
+             s.id AS sessionId, s.title AS sessionTitle,
+             p.name AS projectName, p.root_path_hash AS rootPathHash
       FROM analysis_documents d
-      LEFT JOIN code_projects p ON p.id = d.project_id
+      LEFT JOIN analysis_sessions s ON s.id = d.session_id
+      LEFT JOIN code_projects p ON p.id = s.project_id
       WHERE d.id = ?
     `,
       )

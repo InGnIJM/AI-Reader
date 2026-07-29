@@ -38,6 +38,95 @@ describe('CodeAnalysisWorkbench', () => {
         replyToAnnotation: vi.fn(async () => []),
         exportMarkdown: vi.fn(async () => '# Export'),
         exportJson: vi.fn(async () => ({ type: 'code-analysis-document' })),
+
+        // Session management
+        listSessions: vi.fn(async () => []),
+        listRecentSessions: vi.fn(async () => []),
+        getSession: vi.fn(async () => null),
+        renameSession: vi.fn(async (payload: any) => ({
+          id: payload.sessionId,
+          title: payload.title,
+          status: 'active',
+          projectId: null,
+          activeBranchId: 'branch-1',
+          activeDocumentId: 'doc-1',
+          archivedAt: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })),
+        archiveSession: vi.fn(async (sessionId: string) => ({
+          id: sessionId,
+          title: 'Archived Session',
+          status: 'archived',
+          projectId: null,
+          activeBranchId: 'branch-1',
+          activeDocumentId: 'doc-1',
+          archivedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })),
+        restoreSession: vi.fn(async (sessionId: string) => ({
+          id: sessionId,
+          title: 'Restored Session',
+          status: 'active',
+          projectId: null,
+          activeBranchId: 'branch-1',
+          activeDocumentId: 'doc-1',
+          archivedAt: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })),
+        deleteSession: vi.fn(async () => ({ cleanupPending: false })),
+
+        // Turn and branch management
+        runTurn: vi.fn(async (payload: any) => ({
+          session: {
+            id: payload.sessionId ?? 'session-1',
+            title: payload.goal.slice(0, 50),
+            status: 'active',
+            projectId: payload.projectId ?? null,
+            activeBranchId: 'branch-1',
+            activeDocumentId: 'doc-turn-1',
+            archivedAt: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          branch: {
+            id: 'branch-1',
+            sessionId: payload.sessionId ?? 'session-1',
+            name: 'main',
+            parentBranchId: null,
+            forkedFromDocumentId: null,
+            headDocumentId: 'doc-turn-1',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          turn: {
+            id: 'turn-1',
+            sessionId: payload.sessionId ?? 'session-1',
+            branchId: 'branch-1',
+            parentDocumentId: payload.parentDocumentId ?? null,
+            goal: payload.goal,
+            contentMarkdown: '# Turn Result\n\nAnalysis complete.',
+            status: 'completed',
+            toolCallCount: 1,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+        })),
+        checkoutTurn: vi.fn(async () => undefined),
+        listBranches: vi.fn(async () => []),
+        switchBranch: vi.fn(async () => undefined),
+        renameBranch: vi.fn(async (payload: any) => ({
+          id: payload.branchId,
+          sessionId: payload.sessionId,
+          name: payload.name,
+          parentBranchId: null,
+          forkedFromDocumentId: null,
+          headDocumentId: 'doc-1',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })),
       },
       dialog: {
         openDirectory: vi.fn(async () => ({ canceled: false, filePaths: ['E:/fixture'] })),
@@ -57,13 +146,13 @@ describe('CodeAnalysisWorkbench', () => {
     await user.type(screen.getByLabelText(/analysis goal/i), 'Explain startup');
     await user.keyboard('{Enter}');
 
-    await waitFor(() => expect(screen.getByText('Startup')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Turn Result')).toBeInTheDocument());
     expect(screen.getByText(/listFiles/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /export md/i }));
     await user.click(screen.getByRole('button', { name: /export json/i }));
-    expect(window.api.codeAnalysis.exportMarkdown).toHaveBeenCalledWith('doc-1');
-    expect(window.api.codeAnalysis.exportJson).toHaveBeenCalledWith('doc-1');
+    expect(window.api.codeAnalysis.exportMarkdown).toHaveBeenCalledWith('turn-1');
+    expect(window.api.codeAnalysis.exportJson).toHaveBeenCalledWith('turn-1');
   });
 
   it('shows global recent conversations and collapsible project folders', async () => {
@@ -71,76 +160,73 @@ describe('CodeAnalysisWorkbench', () => {
       { id: 'project-1', name: 'First project', rootPathHash: 'first' },
       { id: 'project-2', name: 'Second project', rootPathHash: 'second' },
     ]);
-    (window.api.codeAnalysis.listRecentDocuments as ReturnType<typeof vi.fn>).mockResolvedValue([
+    (window.api.codeAnalysis.listRecentSessions as ReturnType<typeof vi.fn>).mockResolvedValue([
       {
-        id: 'doc-second',
+        id: 'session-second',
         projectId: 'project-2',
-        goal: 'Recent from second project',
-        contentMarkdown: '# Recent',
-        status: 'completed',
-        toolCallCount: 0,
+        title: 'Recent from second project',
+        status: 'active',
+        activeBranchId: 'branch-1',
+        activeDocumentId: 'doc-1',
+        archivedAt: null,
         createdAt: '2026-07-29T02:00:00.000Z',
         updatedAt: '2026-07-29T02:00:00.000Z',
       },
       {
-        id: 'doc-local',
+        id: 'session-local',
         projectId: null,
-        goal: 'Recent local document',
-        contentMarkdown: '# Local',
-        status: 'completed',
-        toolCallCount: 0,
+        title: 'Recent local session',
+        status: 'active',
+        activeBranchId: 'branch-1',
+        activeDocumentId: 'doc-2',
+        archivedAt: null,
         createdAt: '2026-07-29T01:00:00.000Z',
         updatedAt: '2026-07-29T01:00:00.000Z',
       },
     ]);
-    (window.api.codeAnalysis.listDocuments as ReturnType<typeof vi.fn>).mockImplementation(
-      async (projectId: string | null) =>
-        projectId === 'project-1'
-          ? [
-              {
-                id: 'doc-first',
-                projectId: 'project-1',
-                goal: 'Conversation inside first project',
-                contentMarkdown: '# First',
-                status: 'completed',
-                toolCallCount: 0,
-                createdAt: '2026-07-29T00:00:00.000Z',
-                updatedAt: '2026-07-29T00:00:00.000Z',
-              },
-            ]
-          : [],
-    );
 
     const user = userEvent.setup();
     render(<CodeAnalysisWorkbench />);
 
     expect(await screen.findByRole('button', { name: 'Recent from second project' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Recent local document' })).toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: 'Conversation inside first project' }),
-    ).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: /^first project$/i }));
-
-    expect(
-      await screen.findByRole('button', { name: 'Conversation inside first project' }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^first project$/i })).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    );
+    expect(screen.getByRole('button', { name: 'Recent local session' })).toBeInTheDocument();
   });
 
   it('creates a no-project document from the local folder without directory tools', async () => {
-    (window.api.codeAnalysis.run as ReturnType<typeof vi.fn>).mockResolvedValue({
-      id: 'doc-local',
-      projectId: null,
-      goal: 'Write a design note',
-      contentMarkdown: '# Design note',
-      status: 'completed',
-      toolCallCount: 0,
-      createdAt: '2026-07-29T00:00:00.000Z',
-      updatedAt: '2026-07-29T00:00:00.000Z',
+    (window.api.codeAnalysis.runTurn as ReturnType<typeof vi.fn>).mockResolvedValue({
+      session: {
+        id: 'session-local',
+        title: 'Write a design note',
+        status: 'active',
+        projectId: null,
+        activeBranchId: 'branch-1',
+        activeDocumentId: 'doc-turn-1',
+        archivedAt: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      branch: {
+        id: 'branch-1',
+        sessionId: 'session-local',
+        name: 'main',
+        parentBranchId: null,
+        forkedFromDocumentId: null,
+        headDocumentId: 'doc-turn-1',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      turn: {
+        id: 'turn-1',
+        sessionId: 'session-local',
+        branchId: 'branch-1',
+        parentDocumentId: null,
+        goal: 'Write a design note',
+        contentMarkdown: '# Design note',
+        status: 'completed',
+        toolCallCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
     });
 
     const user = userEvent.setup();
@@ -149,24 +235,19 @@ describe('CodeAnalysisWorkbench', () => {
     await user.keyboard('{Enter}');
 
     await waitFor(() =>
-      expect(window.api.codeAnalysis.run).toHaveBeenCalledWith(null, 'Write a design note'),
+      expect(window.api.codeAnalysis.runTurn).toHaveBeenCalledWith(
+        expect.objectContaining({ goal: 'Write a design note' }),
+      ),
     );
     expect(await screen.findByText('Design note')).toBeInTheDocument();
   });
 
   it('shows the submitted goal in the conversation before analysis finishes', async () => {
-    let resolveRun!: (value: {
-      id: string;
-      projectId: string;
-      goal: string;
-      contentMarkdown: string;
-      status: string;
-      toolCallCount: number;
-    }) => void;
-    const pendingRun = new Promise<Parameters<typeof resolveRun>[0]>((resolve) => {
+    let resolveRun!: (value: any) => void;
+    const pendingRun = new Promise<any>((resolve) => {
       resolveRun = resolve;
     });
-    (window.api.codeAnalysis.run as ReturnType<typeof vi.fn>).mockReturnValue(pendingRun);
+    (window.api.codeAnalysis.runTurn as ReturnType<typeof vi.fn>).mockReturnValue(pendingRun);
 
     const user = userEvent.setup();
     render(<CodeAnalysisWorkbench />);
@@ -182,34 +263,115 @@ describe('CodeAnalysisWorkbench', () => {
     expect(screen.getByText('Generating document...')).toBeInTheDocument();
 
     resolveRun({
-      id: 'doc-2',
-      projectId: 'project-1',
-      goal: 'Explain the startup flow',
-      contentMarkdown: '# Startup flow',
-      status: 'completed',
-      toolCallCount: 1,
+      session: {
+        id: 'session-1',
+        title: 'Explain the startup flow',
+        status: 'active',
+        projectId: 'project-1',
+        activeBranchId: 'branch-1',
+        activeDocumentId: 'doc-turn-1',
+        archivedAt: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      branch: {
+        id: 'branch-1',
+        sessionId: 'session-1',
+        name: 'main',
+        parentBranchId: null,
+        forkedFromDocumentId: null,
+        headDocumentId: 'doc-turn-1',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      turn: {
+        id: 'turn-1',
+        sessionId: 'session-1',
+        branchId: 'branch-1',
+        parentDocumentId: null,
+        goal: 'Explain the startup flow',
+        contentMarkdown: '# Startup flow',
+        status: 'completed',
+        toolCallCount: 1,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
     });
     await waitFor(() => expect(screen.getByText('Startup flow')).toBeInTheDocument());
   });
 
   it('creates separate selectable records for subsequent analyses', async () => {
-    const run = window.api.codeAnalysis.run as ReturnType<typeof vi.fn>;
-    run
+    const runTurn = window.api.codeAnalysis.runTurn as ReturnType<typeof vi.fn>;
+    runTurn
       .mockResolvedValueOnce({
-        id: 'doc-first',
-        projectId: 'project-1',
-        goal: 'First analysis',
-        contentMarkdown: '# First answer',
-        status: 'completed',
-        toolCallCount: 1,
+        session: {
+          id: 'session-1',
+          title: 'First analysis',
+          status: 'active',
+          projectId: 'project-1',
+          activeBranchId: 'branch-1',
+          activeDocumentId: 'doc-turn-1',
+          archivedAt: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        branch: {
+          id: 'branch-1',
+          sessionId: 'session-1',
+          name: 'main',
+          parentBranchId: null,
+          forkedFromDocumentId: null,
+          headDocumentId: 'doc-turn-1',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        turn: {
+          id: 'turn-1',
+          sessionId: 'session-1',
+          branchId: 'branch-1',
+          parentDocumentId: null,
+          goal: 'First analysis',
+          contentMarkdown: '# First answer',
+          status: 'completed',
+          toolCallCount: 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
       })
       .mockResolvedValueOnce({
-        id: 'doc-second',
-        projectId: 'project-1',
-        goal: 'Second analysis',
-        contentMarkdown: '# Second answer',
-        status: 'completed',
-        toolCallCount: 1,
+        session: {
+          id: 'session-1',
+          title: 'First analysis',
+          status: 'active',
+          projectId: 'project-1',
+          activeBranchId: 'branch-1',
+          activeDocumentId: 'doc-turn-2',
+          archivedAt: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        branch: {
+          id: 'branch-1',
+          sessionId: 'session-1',
+          name: 'main',
+          parentBranchId: null,
+          forkedFromDocumentId: null,
+          headDocumentId: 'doc-turn-2',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        turn: {
+          id: 'turn-2',
+          sessionId: 'session-1',
+          branchId: 'branch-1',
+          parentDocumentId: 'doc-turn-1',
+          goal: 'Second analysis',
+          contentMarkdown: '# Second answer',
+          status: 'completed',
+          toolCallCount: 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
       });
 
     const user = userEvent.setup();
@@ -225,14 +387,9 @@ describe('CodeAnalysisWorkbench', () => {
     await user.keyboard('{Enter}');
     await waitFor(() => expect(screen.getByText('Second answer')).toBeInTheDocument());
 
-    expect(screen.queryByText('First answer')).not.toBeInTheDocument();
-    await user.click(screen.getAllByRole('button', { name: 'First analysis' })[0]);
-
-    await waitFor(() =>
-      expect(window.api.codeAnalysis.listAnnotations).toHaveBeenLastCalledWith('doc-first'),
-    );
-    expect(window.api.codeAnalysis.listTraces).toHaveBeenLastCalledWith('doc-first');
+    // Both turns should be visible in the conversation
     expect(screen.getByText('First answer')).toBeInTheDocument();
+    expect(screen.getByText('Second answer')).toBeInTheDocument();
   });
 
   it('renders the persisted assistant reply inside the answered annotation', async () => {
@@ -261,7 +418,7 @@ describe('CodeAnalysisWorkbench', () => {
       .mockResolvedValue([
         {
           id: 'ann-existing',
-          analysisDocumentId: 'doc-1',
+          analysisDocumentId: 'doc-turn-1',
           anchorExactText: 'IPC',
           question: 'What is IPC?',
           status: 'answered',
@@ -270,8 +427,8 @@ describe('CodeAnalysisWorkbench', () => {
         },
         {
           id: 'ann-1',
-          analysisDocumentId: 'doc-1',
-          anchorExactText: 'Startup',
+          analysisDocumentId: 'doc-turn-1',
+          anchorExactText: 'Turn Result',
           question: 'Explain this',
           status: 'answered',
           createdAt: new Date().toISOString(),
@@ -298,16 +455,16 @@ describe('CodeAnalysisWorkbench', () => {
     await user.click(screen.getByRole('button', { name: /select directory/i }));
     await user.type(screen.getByLabelText(/analysis goal/i), 'Explain startup');
     await user.keyboard('{Enter}');
-    const startup = await screen.findByText('Startup');
+    const turnResult = await screen.findByText('Turn Result');
 
     const range = document.createRange();
-    range.selectNodeContents(startup);
+    range.selectNodeContents(turnResult);
     vi.spyOn(window, 'getSelection').mockReturnValue({
-      toString: () => 'Startup',
+      toString: () => 'Turn Result',
       rangeCount: 1,
       getRangeAt: () => range,
     } as unknown as Selection);
-    fireEvent.mouseUp(startup);
+    fireEvent.mouseUp(turnResult);
 
     await user.type(screen.getByLabelText(/comment question/i), 'Explain this');
     await user.click(screen.getByRole('button', { name: /^comment$/i }));
@@ -319,22 +476,53 @@ describe('CodeAnalysisWorkbench', () => {
   });
 
   it('restores a selected conversation and its persisted annotation reply', async () => {
-    (window.api.codeAnalysis.listDocuments as ReturnType<typeof vi.fn>).mockResolvedValue([
-      {
-        id: 'doc-history',
-        projectId: 'project-1',
-        goal: 'What is pnpm monorepo?',
-        contentMarkdown: '# pnpm monorepo\n\nA workspace with multiple packages.',
-        status: 'completed',
-        toolCallCount: 2,
-        createdAt: '2026-07-29T10:00:00.000Z',
-        updatedAt: '2026-07-29T10:01:00.000Z',
-      },
+    const mockSession = {
+      id: 'session-history',
+      title: 'What is pnpm monorepo?',
+      status: 'active',
+      projectId: 'project-1',
+      activeBranchId: 'branch-1',
+      activeDocumentId: 'doc-turn-history',
+      archivedAt: null,
+      createdAt: '2026-07-29T10:00:00.000Z',
+      updatedAt: '2026-07-29T10:01:00.000Z',
+    };
+    (window.api.codeAnalysis.listRecentSessions as ReturnType<typeof vi.fn>).mockResolvedValue([
+      mockSession,
     ]);
+    (window.api.codeAnalysis.getSession as ReturnType<typeof vi.fn>).mockResolvedValue({
+      session: mockSession,
+      branches: [
+        {
+          id: 'branch-1',
+          sessionId: 'session-history',
+          name: 'main',
+          parentBranchId: null,
+          forkedFromDocumentId: null,
+          headDocumentId: 'doc-turn-history',
+          createdAt: '2026-07-29T10:00:00.000Z',
+          updatedAt: '2026-07-29T10:01:00.000Z',
+        },
+      ],
+      turns: [
+        {
+          id: 'turn-history',
+          sessionId: 'session-history',
+          branchId: 'branch-1',
+          parentDocumentId: null,
+          goal: 'What is pnpm monorepo?',
+          contentMarkdown: '# pnpm monorepo\n\nA workspace with multiple packages.',
+          status: 'completed',
+          toolCallCount: 2,
+          createdAt: '2026-07-29T10:00:00.000Z',
+          updatedAt: '2026-07-29T10:01:00.000Z',
+        },
+      ],
+    });
     (window.api.codeAnalysis.listAnnotations as ReturnType<typeof vi.fn>).mockResolvedValue([
       {
         id: 'ann-history',
-        analysisDocumentId: 'doc-history',
+        analysisDocumentId: 'doc-turn-history',
         anchorExactText: 'pnpm monorepo',
         question: 'Explain this',
         status: 'answered',
@@ -355,15 +543,14 @@ describe('CodeAnalysisWorkbench', () => {
     const user = userEvent.setup();
     render(<CodeAnalysisWorkbench />);
 
-    await user.click(await screen.findByRole('button', { name: 'Fixture' }));
-    await user.click(await screen.findByRole('button', { name: /what is pnpm monorepo/i }));
+    await user.click(await screen.findByRole('button', { name: 'What is pnpm monorepo?' }));
 
     expect(await screen.findByRole('heading', { name: 'pnpm monorepo' })).toBeInTheDocument();
     expect(screen.getByRole('article', { name: /you/i })).toHaveTextContent(
       'What is pnpm monorepo?',
     );
     expect(screen.getByText(/manages multiple packages in one repository/i)).toBeInTheDocument();
-    expect(window.api.codeAnalysis.listTraces).toHaveBeenCalledWith('doc-history');
+    expect(window.api.codeAnalysis.listTraces).toHaveBeenCalledWith('turn-history');
     expect(window.api.codeAnalysis.listAnnotationMessages).toHaveBeenCalledWith('ann-history');
   });
 
@@ -390,7 +577,7 @@ describe('CodeAnalysisWorkbench', () => {
     unmount();
 
     (window.api.codeAnalysis.listProjects as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-    (window.api.codeAnalysis.run as ReturnType<typeof vi.fn>).mockRejectedValue(
+    (window.api.codeAnalysis.runTurn as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error('Provider unavailable'),
     );
     const user = userEvent.setup();
@@ -427,8 +614,8 @@ describe('CodeAnalysisWorkbench', () => {
       .mockResolvedValueOnce([
         {
           id: 'ann-1',
-          analysisDocumentId: 'doc-1',
-          anchorExactText: 'Startup',
+          analysisDocumentId: 'doc-turn-1',
+          anchorExactText: 'Turn Result',
           question: 'Explain this',
           status: 'failed',
           createdAt: new Date().toISOString(),
@@ -441,15 +628,15 @@ describe('CodeAnalysisWorkbench', () => {
     await user.click(screen.getByRole('button', { name: /select directory/i }));
     await user.type(screen.getByLabelText(/analysis goal/i), 'Explain startup');
     await user.keyboard('{Enter}');
-    const startup = await screen.findByText('Startup');
+    const turnResult = await screen.findByText('Turn Result');
     const range = document.createRange();
-    range.selectNodeContents(startup);
+    range.selectNodeContents(turnResult);
     vi.spyOn(window, 'getSelection').mockReturnValue({
-      toString: () => 'Startup',
+      toString: () => 'Turn Result',
       rangeCount: 1,
       getRangeAt: () => range,
     } as unknown as Selection);
-    fireEvent.mouseUp(startup);
+    fireEvent.mouseUp(turnResult);
     await user.type(screen.getByLabelText(/comment question/i), 'Explain this');
     await user.click(screen.getByRole('button', { name: /^comment$/i }));
 
@@ -547,7 +734,7 @@ describe('CodeAnalysisWorkbench', () => {
     (window.api.codeAnalysis.listProjects as ReturnType<typeof vi.fn>).mockResolvedValue([
       { id: 'project-second', name: 'Second project', rootPathHash: 'second' },
     ]);
-    (window.api.codeAnalysis.run as ReturnType<typeof vi.fn>).mockReturnValue(pendingRun);
+    (window.api.codeAnalysis.runTurn as ReturnType<typeof vi.fn>).mockReturnValue(pendingRun);
 
     const user = userEvent.setup();
     render(<CodeAnalysisWorkbench />);
@@ -557,17 +744,434 @@ describe('CodeAnalysisWorkbench', () => {
     await user.click(await screen.findByRole('button', { name: 'Second project' }));
 
     resolveRun({
-      id: 'doc-stale',
-      projectId: 'project-1',
-      goal: 'Slow analysis',
-      contentMarkdown: '# Stale result',
-      status: 'completed',
-      toolCallCount: 0,
-      createdAt: '2026-07-29T00:00:00.000Z',
-      updatedAt: '2026-07-29T00:00:00.000Z',
+      session: {
+        id: 'session-stale',
+        title: 'Slow analysis',
+        status: 'active',
+        projectId: 'project-1',
+        activeBranchId: 'branch-1',
+        activeDocumentId: 'doc-turn-stale',
+        archivedAt: null,
+        createdAt: '2026-07-29T00:00:00.000Z',
+        updatedAt: '2026-07-29T00:00:00.000Z',
+      },
+      branch: {
+        id: 'branch-1',
+        sessionId: 'session-stale',
+        name: 'main',
+        parentBranchId: null,
+        forkedFromDocumentId: null,
+        headDocumentId: 'doc-turn-stale',
+        createdAt: '2026-07-29T00:00:00.000Z',
+        updatedAt: '2026-07-29T00:00:00.000Z',
+      },
+      turn: {
+        id: 'turn-stale',
+        sessionId: 'session-stale',
+        branchId: 'branch-1',
+        parentDocumentId: null,
+        goal: 'Slow analysis',
+        contentMarkdown: '# Stale result',
+        status: 'completed',
+        toolCallCount: 0,
+        createdAt: '2026-07-29T00:00:00.000Z',
+        updatedAt: '2026-07-29T00:00:00.000Z',
+      },
     });
 
     await waitFor(() => expect(screen.queryByText('Stale result')).not.toBeInTheDocument());
-    expect(window.api.codeAnalysis.listTraces).not.toHaveBeenCalledWith('doc-stale');
+    expect(window.api.codeAnalysis.listTraces).not.toHaveBeenCalledWith('doc-turn-stale');
+  });
+
+  // ── Session Integration Tests ──────────────────────────────────────────
+
+  it('creates a new session on first turn via runTurn', async () => {
+    (window.api.codeAnalysis.run as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<CodeAnalysisWorkbench />);
+
+    await user.click(screen.getByRole('button', { name: /select directory/i }));
+    await user.type(screen.getByLabelText(/analysis goal/i), 'Analyze project structure');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() =>
+      expect(window.api.codeAnalysis.runTurn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          goal: 'Analyze project structure',
+          projectId: 'project-1',
+        }),
+      ),
+    );
+    expect(await screen.findByText('Turn Result')).toBeInTheDocument();
+  });
+
+  it('appends subsequent turns to the same session', async () => {
+    const runTurn = window.api.codeAnalysis.runTurn as ReturnType<typeof vi.fn>;
+    runTurn
+      .mockResolvedValueOnce({
+        session: {
+          id: 'session-1',
+          title: 'First turn',
+          status: 'active',
+          projectId: 'project-1',
+          activeBranchId: 'branch-1',
+          activeDocumentId: 'doc-turn-1',
+          archivedAt: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        branch: {
+          id: 'branch-1',
+          sessionId: 'session-1',
+          name: 'main',
+          parentBranchId: null,
+          forkedFromDocumentId: null,
+          headDocumentId: 'doc-turn-1',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        turn: {
+          id: 'turn-1',
+          sessionId: 'session-1',
+          branchId: 'branch-1',
+          parentDocumentId: null,
+          goal: 'First turn',
+          contentMarkdown: '# First Turn Result',
+          status: 'completed',
+          toolCallCount: 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      })
+      .mockResolvedValueOnce({
+        session: {
+          id: 'session-1',
+          title: 'First turn',
+          status: 'active',
+          projectId: 'project-1',
+          activeBranchId: 'branch-1',
+          activeDocumentId: 'doc-turn-2',
+          archivedAt: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        branch: {
+          id: 'branch-1',
+          sessionId: 'session-1',
+          name: 'main',
+          parentBranchId: null,
+          forkedFromDocumentId: null,
+          headDocumentId: 'doc-turn-2',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        turn: {
+          id: 'turn-2',
+          sessionId: 'session-1',
+          branchId: 'branch-1',
+          parentDocumentId: 'doc-turn-1',
+          goal: 'Second turn',
+          contentMarkdown: '# Second Turn Result',
+          status: 'completed',
+          toolCallCount: 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      });
+
+    const user = userEvent.setup();
+    render(<CodeAnalysisWorkbench />);
+    await user.click(screen.getByRole('button', { name: /select directory/i }));
+
+    const prompt = screen.getByLabelText(/analysis goal/i);
+    await user.type(prompt, 'First turn');
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(screen.getByText('First Turn Result')).toBeInTheDocument());
+
+    await user.type(prompt, 'Second turn');
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(screen.getByText('Second Turn Result')).toBeInTheDocument());
+
+    // Both turns should be visible in the conversation timeline
+    expect(screen.getByText('First Turn Result')).toBeInTheDocument();
+    expect(screen.getByText('Second Turn Result')).toBeInTheDocument();
+
+    // runTurn should have been called with sessionId on second call
+    expect(runTurn).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        sessionId: 'session-1',
+        goal: 'Second turn',
+      }),
+    );
+  });
+
+  it('selects a session and loads its turns', async () => {
+    const mockSession = {
+      id: 'session-existing',
+      title: 'Existing Session',
+      status: 'active',
+      projectId: 'project-1',
+      activeBranchId: 'branch-1',
+      activeDocumentId: 'doc-turn-1',
+      archivedAt: null,
+      createdAt: '2026-07-29T10:00:00.000Z',
+      updatedAt: '2026-07-29T10:01:00.000Z',
+    };
+    const mockBranches = [
+      {
+        id: 'branch-1',
+        sessionId: 'session-existing',
+        name: 'main',
+        parentBranchId: null,
+        forkedFromDocumentId: null,
+        headDocumentId: 'doc-turn-1',
+        createdAt: '2026-07-29T10:00:00.000Z',
+        updatedAt: '2026-07-29T10:01:00.000Z',
+      },
+    ];
+    const mockTurns = [
+      {
+        id: 'turn-1',
+        sessionId: 'session-existing',
+        branchId: 'branch-1',
+        parentDocumentId: null,
+        goal: 'Explain startup',
+        contentMarkdown: '# Startup\n\nUses IPC.',
+        status: 'completed',
+        toolCallCount: 1,
+        createdAt: '2026-07-29T10:00:00.000Z',
+        updatedAt: '2026-07-29T10:01:00.000Z',
+      },
+    ];
+
+    (window.api.codeAnalysis.listRecentSessions as ReturnType<typeof vi.fn>).mockResolvedValue([
+      mockSession,
+    ]);
+    (window.api.codeAnalysis.getSession as ReturnType<typeof vi.fn>).mockResolvedValue({
+      session: mockSession,
+      branches: mockBranches,
+      turns: mockTurns,
+    });
+
+    const user = userEvent.setup();
+    render(<CodeAnalysisWorkbench />);
+
+    // Sessions should be visible in the left panel
+    const sessionButton = await screen.findByRole('button', { name: 'Existing Session' });
+    await user.click(sessionButton);
+
+    await waitFor(() =>
+      expect(window.api.codeAnalysis.getSession).toHaveBeenCalledWith('session-existing'),
+    );
+
+    // Turn content should be visible
+    expect(await screen.findByText('Startup')).toBeInTheDocument();
+  });
+
+  it('checks out to a historical turn', async () => {
+    const mockSession = {
+      id: 'session-checkout',
+      title: 'Checkout Session',
+      status: 'active',
+      projectId: 'project-1',
+      activeBranchId: 'branch-1',
+      activeDocumentId: 'doc-turn-2',
+      archivedAt: null,
+      createdAt: '2026-07-29T10:00:00.000Z',
+      updatedAt: '2026-07-29T10:02:00.000Z',
+    };
+    const mockTurns = [
+      {
+        id: 'turn-1',
+        sessionId: 'session-checkout',
+        branchId: 'branch-1',
+        parentDocumentId: null,
+        goal: 'First question',
+        contentMarkdown: '# First Answer',
+        status: 'completed',
+        toolCallCount: 1,
+        createdAt: '2026-07-29T10:00:00.000Z',
+        updatedAt: '2026-07-29T10:01:00.000Z',
+      },
+      {
+        id: 'turn-2',
+        sessionId: 'session-checkout',
+        branchId: 'branch-1',
+        parentDocumentId: 'doc-turn-1',
+        goal: 'Second question',
+        contentMarkdown: '# Second Answer',
+        status: 'completed',
+        toolCallCount: 1,
+        createdAt: '2026-07-29T10:01:00.000Z',
+        updatedAt: '2026-07-29T10:02:00.000Z',
+      },
+    ];
+
+    (window.api.codeAnalysis.listRecentSessions as ReturnType<typeof vi.fn>).mockResolvedValue([
+      mockSession,
+    ]);
+    (window.api.codeAnalysis.getSession as ReturnType<typeof vi.fn>).mockResolvedValue({
+      session: mockSession,
+      branches: [
+        {
+          id: 'branch-1',
+          sessionId: 'session-checkout',
+          name: 'main',
+          parentBranchId: null,
+          forkedFromDocumentId: null,
+          headDocumentId: 'doc-turn-2',
+          createdAt: '2026-07-29T10:00:00.000Z',
+          updatedAt: '2026-07-29T10:02:00.000Z',
+        },
+      ],
+      turns: mockTurns,
+    });
+
+    const user = userEvent.setup();
+    render(<CodeAnalysisWorkbench />);
+
+    await user.click(await screen.findByRole('button', { name: 'Checkout Session' }));
+
+    // Both turns should be visible in the conversation
+    expect(await screen.findByText('First Answer')).toBeInTheDocument();
+    expect(screen.getByText('Second Answer')).toBeInTheDocument();
+  });
+
+  it('switches branches within a session', async () => {
+    const mockSession = {
+      id: 'session-branch',
+      title: 'Branch Session',
+      status: 'active',
+      projectId: 'project-1',
+      activeBranchId: 'branch-2',
+      activeDocumentId: 'doc-turn-branch',
+      archivedAt: null,
+      createdAt: '2026-07-29T10:00:00.000Z',
+      updatedAt: '2026-07-29T10:03:00.000Z',
+    };
+    const mockBranches = [
+      {
+        id: 'branch-1',
+        sessionId: 'session-branch',
+        name: 'main',
+        parentBranchId: null,
+        forkedFromDocumentId: null,
+        headDocumentId: 'doc-turn-1',
+        createdAt: '2026-07-29T10:00:00.000Z',
+        updatedAt: '2026-07-29T10:01:00.000Z',
+      },
+      {
+        id: 'branch-2',
+        sessionId: 'session-branch',
+        name: 'experiment',
+        parentBranchId: 'branch-1',
+        forkedFromDocumentId: 'doc-turn-1',
+        headDocumentId: 'doc-turn-branch',
+        createdAt: '2026-07-29T10:02:00.000Z',
+        updatedAt: '2026-07-29T10:03:00.000Z',
+      },
+    ];
+
+    (window.api.codeAnalysis.listRecentSessions as ReturnType<typeof vi.fn>).mockResolvedValue([
+      mockSession,
+    ]);
+    (window.api.codeAnalysis.getSession as ReturnType<typeof vi.fn>).mockResolvedValue({
+      session: mockSession,
+      branches: mockBranches,
+      turns: [
+        {
+          id: 'turn-branch',
+          sessionId: 'session-branch',
+          branchId: 'branch-2',
+          parentDocumentId: null,
+          goal: 'Experiment',
+          contentMarkdown: '# Experiment Branch',
+          status: 'completed',
+          toolCallCount: 0,
+          createdAt: '2026-07-29T10:02:00.000Z',
+          updatedAt: '2026-07-29T10:03:00.000Z',
+        },
+      ],
+    });
+
+    const user = userEvent.setup();
+    render(<CodeAnalysisWorkbench />);
+
+    await user.click(await screen.findByRole('button', { name: 'Branch Session' }));
+
+    // Branch selector should be visible
+    const branchSelect = await screen.findByRole('combobox', { name: /branch/i });
+    expect(branchSelect).toBeInTheDocument();
+
+    await user.selectOptions(branchSelect, 'branch-1');
+
+    await waitFor(() =>
+      expect(window.api.codeAnalysis.switchBranch).toHaveBeenCalledWith({
+        sessionId: 'session-branch',
+        branchId: 'branch-1',
+      }),
+    );
+  });
+
+  it('archives and restores a session', async () => {
+    const mockSession = {
+      id: 'session-archive',
+      title: 'Archive Session',
+      status: 'active',
+      projectId: null,
+      activeBranchId: 'branch-1',
+      activeDocumentId: 'doc-1',
+      archivedAt: null,
+      createdAt: '2026-07-29T10:00:00.000Z',
+      updatedAt: '2026-07-29T10:01:00.000Z',
+    };
+    const archivedSession = {
+      ...mockSession,
+      status: 'archived' as const,
+      archivedAt: '2026-07-29T10:02:00.000Z',
+    };
+    const restoredSession = {
+      ...mockSession,
+      status: 'active' as const,
+      archivedAt: null,
+    };
+
+    (window.api.codeAnalysis.listRecentSessions as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce([mockSession])
+      .mockResolvedValueOnce([archivedSession])
+      .mockResolvedValueOnce([restoredSession]);
+    (window.api.codeAnalysis.getSession as ReturnType<typeof vi.fn>).mockResolvedValue({
+      session: mockSession,
+      branches: [],
+      turns: [],
+    });
+    (window.api.codeAnalysis.archiveSession as ReturnType<typeof vi.fn>).mockResolvedValue(
+      archivedSession,
+    );
+    (window.api.codeAnalysis.restoreSession as ReturnType<typeof vi.fn>).mockResolvedValue(
+      restoredSession,
+    );
+
+    const user = userEvent.setup();
+    render(<CodeAnalysisWorkbench />);
+
+    // Select session
+    await user.click(await screen.findByRole('button', { name: 'Archive Session' }));
+    await waitFor(() =>
+      expect(window.api.codeAnalysis.getSession).toHaveBeenCalledWith('session-archive'),
+    );
+
+    // Right-click to open context menu
+    const sessionButton = screen.getByRole('button', { name: 'Archive Session' });
+    fireEvent.contextMenu(sessionButton);
+
+    // Click archive in context menu
+    const archiveMenuItem = await screen.findByRole('menuitem', { name: /archive/i });
+    await user.click(archiveMenuItem);
+
+    await waitFor(() =>
+      expect(window.api.codeAnalysis.archiveSession).toHaveBeenCalledWith('session-archive'),
+    );
   });
 });

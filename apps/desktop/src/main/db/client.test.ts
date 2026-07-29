@@ -57,7 +57,6 @@ describe('SQLite Client', () => {
       'idx_analysis_discussion_messages_annotation',
       'idx_analysis_documents_branch',
       'idx_analysis_documents_parent',
-      'idx_analysis_documents_project',
       'idx_analysis_documents_session',
       'idx_analysis_file_cleanup_queue_created',
       'idx_analysis_sessions_project_status_updated',

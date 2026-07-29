@@ -73,7 +73,6 @@ describe('CodeAnalysisService list APIs', () => {
     const documents = [
       {
         id: 'doc-new',
-        projectId: 'project-new',
         goal: 'Explain pnpm',
         contentMarkdown: '# pnpm',
         status: 'completed',
@@ -99,8 +98,8 @@ describe('CodeAnalysisService list APIs', () => {
 
     const calls = prepare.mock.calls as unknown as Array<[string]>;
     expect(calls[0][0]).toContain('ORDER BY p.updated_at DESC');
-    expect(calls[1][0]).toContain('WHERE project_id = ?');
-    expect(calls[1][0]).toContain('ORDER BY updated_at DESC');
+    expect(calls[1][0]).toContain('WHERE s.project_id = ?');
+    expect(calls[1][0]).toContain('ORDER BY d.updated_at DESC');
     expect(all).toHaveBeenLastCalledWith('project-new');
   });
 
@@ -108,7 +107,6 @@ describe('CodeAnalysisService list APIs', () => {
     const recentDocuments = [
       {
         id: 'doc-local',
-        projectId: null,
         goal: 'Draft a local document',
         contentMarkdown: '# Local',
         status: 'completed',
@@ -118,7 +116,6 @@ describe('CodeAnalysisService list APIs', () => {
       },
       {
         id: 'doc-project',
-        projectId: 'project-1',
         goal: 'Inspect project',
         contentMarkdown: '# Project',
         status: 'completed',
@@ -142,7 +139,7 @@ describe('CodeAnalysisService list APIs', () => {
     expect(calls[0][0]).not.toContain('WHERE project_id');
     expect(calls[0][0]).toContain('LIMIT ?');
     expect(all).toHaveBeenNthCalledWith(1, 20);
-    expect(calls[1][0]).toContain('WHERE project_id IS NULL');
+    expect(calls[1][0]).toContain('WHERE s.project_id IS NULL');
 
     await service.listRecentDocuments(0);
     await service.listRecentDocuments(500);
@@ -158,13 +155,12 @@ describe('CodeAnalysisService list APIs', () => {
         if (sql.includes('INSERT INTO analysis_documents')) {
           Object.assign(row, {
             id: args[0],
-            projectId: args[1],
-            goal: args[2],
+            goal: args[1],
             contentMarkdown: '',
             status: 'running',
             toolCallCount: 0,
-            createdAt: args[3],
-            updatedAt: args[4],
+            createdAt: args[2],
+            updatedAt: args[3],
           });
         }
         if (sql.includes("status = 'completed'")) {
@@ -181,7 +177,7 @@ describe('CodeAnalysisService list APIs', () => {
       get: vi.fn(() => (sql.includes('FROM analysis_documents') ? row : undefined)),
     }));
     const db = {
-      db: { prepare },
+      db: { prepare, exec: vi.fn(), inTransaction: false },
       close: vi.fn(),
     } as unknown as DatabaseClient;
     const llm = {
@@ -201,7 +197,6 @@ describe('CodeAnalysisService list APIs', () => {
         goal: 'Write a local document',
       });
 
-      expect(document.projectId).toBeNull();
       expect(document.toolCallCount).toBe(0);
       expect(llm.chat).toHaveBeenCalledTimes(1);
       const documentDirectories = readdirSync(localDocumentsPath);
@@ -240,13 +235,12 @@ describe('CodeAnalysisService list APIs', () => {
         if (sql.includes('INSERT INTO analysis_documents')) {
           Object.assign(row, {
             id: args[0],
-            projectId: args[1],
-            goal: args[2],
+            goal: args[1],
             contentMarkdown: '',
             status: 'running',
             toolCallCount: 0,
-            createdAt: args[3],
-            updatedAt: args[4],
+            createdAt: args[2],
+            updatedAt: args[3],
           });
         } else if (sql.includes('INSERT INTO analysis_tool_traces')) {
           traces.push({
@@ -288,7 +282,7 @@ describe('CodeAnalysisService list APIs', () => {
       }),
     } as unknown as LLMProvider;
     const db = {
-      db: { prepare },
+      db: { prepare, exec: vi.fn(), inTransaction: false },
       close: vi.fn(),
     } as unknown as DatabaseClient;
 
@@ -318,6 +312,8 @@ describe('CodeAnalysisService list APIs', () => {
             return {};
           }),
         })),
+        exec: vi.fn(),
+        inTransaction: false,
       },
     } as unknown as DatabaseClient;
     const llm = {
@@ -351,7 +347,6 @@ describe('CodeAnalysisService list APIs', () => {
             sql.includes('FROM analysis_documents')
               ? {
                   id: 'doc-empty',
-                  projectId: null,
                   goal: 'Write a document',
                   contentMarkdown: '  ',
                   status: 'completed',
@@ -363,6 +358,8 @@ describe('CodeAnalysisService list APIs', () => {
               : undefined,
           ),
         })),
+        exec: vi.fn(),
+        inTransaction: false,
       },
     } as unknown as DatabaseClient;
     const llm = {
@@ -393,7 +390,6 @@ describe('CodeAnalysisService list APIs', () => {
           }),
           get: vi.fn(() => ({
             id: 'doc-local',
-            projectId: null,
             goal: 'Write a document',
             contentMarkdown: '# Local',
             status: 'completed',
@@ -403,6 +399,8 @@ describe('CodeAnalysisService list APIs', () => {
             updatedAt: '2026-07-29',
           })),
         })),
+        exec: vi.fn(),
+        inTransaction: false,
       },
     } as unknown as DatabaseClient;
     const llm = {
@@ -428,6 +426,8 @@ describe('CodeAnalysisService list APIs', () => {
         prepare: vi.fn(() => ({
           get: vi.fn(() => undefined),
         })),
+        exec: vi.fn(),
+        inTransaction: false,
       },
     } as unknown as DatabaseClient;
     const service = new CodeAnalysisService({ db, llm: {} as LLMProvider });
@@ -450,6 +450,8 @@ describe('CodeAnalysisService list APIs', () => {
             return {};
           }),
         })),
+        exec: vi.fn(),
+        inTransaction: false,
       },
     } as unknown as DatabaseClient;
     const llm = {
@@ -500,6 +502,8 @@ describe('CodeAnalysisService list APIs', () => {
             }),
           };
         }),
+        exec: vi.fn(),
+        inTransaction: false,
       },
     } as unknown as DatabaseClient;
     const llm = {
