@@ -442,6 +442,122 @@ describe('code analysis database migration', () => {
     ).toThrow(/branch/i);
   });
 
+  it('rejects reverse ownership mutations of referenced documents', () => {
+    const moveToSessionTwo = (sqlite: Database.Database): void => {
+      sqlite
+        .prepare(
+          `UPDATE analysis_documents
+           SET session_id = 'session-two', branch_id = 'branch-two'
+           WHERE id = 'document-one'`,
+        )
+        .run();
+    };
+
+    const activeDocumentDb = openMigrated(':memory:');
+    seedSessionGraph(activeDocumentDb);
+    activeDocumentDb
+      .prepare('UPDATE analysis_branches SET head_document_id = NULL WHERE id = ?')
+      .run('branch-one');
+    expect(() => moveToSessionTwo(activeDocumentDb)).toThrow(/active document/i);
+    expect(activeDocumentDb.pragma('foreign_key_check')).toEqual([]);
+
+    const branchHeadDb = openMigrated(':memory:');
+    seedSessionGraph(branchHeadDb);
+    branchHeadDb
+      .prepare('UPDATE analysis_sessions SET active_document_id = NULL WHERE id = ?')
+      .run('session-one');
+    expect(() => moveToSessionTwo(branchHeadDb)).toThrow(/head/i);
+    expect(branchHeadDb.pragma('foreign_key_check')).toEqual([]);
+
+    const forkDocumentDb = openMigrated(':memory:');
+    seedSessionGraph(forkDocumentDb);
+    forkDocumentDb.exec(`
+      UPDATE analysis_sessions
+      SET active_document_id = NULL
+      WHERE id = 'session-one';
+      UPDATE analysis_branches
+      SET head_document_id = NULL
+      WHERE id = 'branch-one';
+      INSERT INTO analysis_branches
+        (id, session_id, name, parent_branch_id, forked_from_document_id,
+         head_document_id, created_at, updated_at)
+      VALUES
+        ('branch-child', 'session-one', 'Child', 'branch-one', 'document-one',
+         NULL, '2026-07-29', '2026-07-29');
+    `);
+    expect(() => moveToSessionTwo(forkDocumentDb)).toThrow(/fork document/i);
+    expect(forkDocumentDb.pragma('foreign_key_check')).toEqual([]);
+
+    const parentDocumentDb = openMigrated(':memory:');
+    seedSessionGraph(parentDocumentDb);
+    parentDocumentDb.exec(`
+      UPDATE analysis_sessions
+      SET active_document_id = NULL
+      WHERE id = 'session-one';
+      UPDATE analysis_branches
+      SET head_document_id = NULL
+      WHERE id = 'branch-one';
+      INSERT INTO analysis_documents
+        (id, project_id, session_id, branch_id, parent_document_id, goal,
+         content_markdown, status, tool_call_count, created_at, updated_at)
+      VALUES
+        ('document-child', NULL, 'session-one', 'branch-one', 'document-one',
+         'Child', '', 'completed', 0, '2026-07-29', '2026-07-29');
+    `);
+    expect(() => moveToSessionTwo(parentDocumentDb)).toThrow(/child parent/i);
+    expect(parentDocumentDb.pragma('foreign_key_check')).toEqual([]);
+  });
+
+  it('rejects reverse ownership mutations of referenced branches', () => {
+    const moveToSessionTwo = (sqlite: Database.Database): void => {
+      sqlite
+        .prepare(
+          `UPDATE analysis_branches
+           SET session_id = 'session-two'
+           WHERE id = 'branch-one'`,
+        )
+        .run();
+    };
+    const detachDocument = (sqlite: Database.Database): void => {
+      sqlite.exec(`
+        UPDATE analysis_sessions
+        SET active_document_id = NULL
+        WHERE id = 'session-one';
+        UPDATE analysis_branches
+        SET head_document_id = NULL
+        WHERE id = 'branch-one';
+        UPDATE analysis_documents
+        SET branch_id = NULL
+        WHERE id = 'document-one';
+      `);
+    };
+
+    const activeBranchDb = openMigrated(':memory:');
+    seedSessionGraph(activeBranchDb);
+    detachDocument(activeBranchDb);
+    expect(() => moveToSessionTwo(activeBranchDb)).toThrow(/active branch/i);
+    expect(activeBranchDb.pragma('foreign_key_check')).toEqual([]);
+
+    const parentBranchDb = openMigrated(':memory:');
+    seedSessionGraph(parentBranchDb);
+    parentBranchDb
+      .prepare(
+        `INSERT INTO analysis_branches
+          (id, session_id, name, parent_branch_id, forked_from_document_id,
+           head_document_id, created_at, updated_at)
+         VALUES
+          ('branch-child', 'session-one', 'Child', 'branch-one', NULL, NULL,
+           '2026-07-29', '2026-07-29')`,
+      )
+      .run();
+    parentBranchDb
+      .prepare('UPDATE analysis_sessions SET active_branch_id = NULL WHERE id = ?')
+      .run('session-one');
+    detachDocument(parentBranchDb);
+    expect(() => moveToSessionTwo(parentBranchDb)).toThrow(/child branch/i);
+    expect(parentBranchDb.pragma('foreign_key_check')).toEqual([]);
+  });
+
   it('is idempotent after the v1 marker is written', () => {
     const dbPath = createPath();
     createLegacyDatabase(dbPath).close();

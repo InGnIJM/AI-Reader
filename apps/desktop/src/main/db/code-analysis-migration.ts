@@ -540,6 +540,20 @@ function createOwnershipAndCycleTriggers(sqlite: Database.Database): void {
         )
         THEN RAISE(ABORT, 'analysis branch turn session mismatch')
       END;
+      SELECT CASE
+        WHEN EXISTS (
+          SELECT 1 FROM analysis_sessions
+          WHERE active_branch_id = OLD.id AND id IS NOT NEW.session_id
+        )
+        THEN RAISE(ABORT, 'analysis session active branch reverse mismatch')
+      END;
+      SELECT CASE
+        WHEN EXISTS (
+          SELECT 1 FROM analysis_branches
+          WHERE parent_branch_id = OLD.id AND session_id IS NOT NEW.session_id
+        )
+        THEN RAISE(ABORT, 'analysis branch child branch session mismatch')
+      END;
     END;
 
     CREATE TRIGGER trg_analysis_documents_validate_insert
@@ -619,6 +633,35 @@ function createOwnershipAndCycleTriggers(sqlite: Database.Database): void {
             SELECT 1 FROM ancestors WHERE id = NEW.id
           )
         THEN RAISE(ABORT, 'analysis turn parent cycle')
+      END;
+      SELECT CASE
+        WHEN EXISTS (
+          SELECT 1 FROM analysis_sessions
+          WHERE active_document_id = OLD.id AND id IS NOT NEW.session_id
+        )
+        THEN RAISE(ABORT, 'analysis session active document reverse mismatch')
+      END;
+      SELECT CASE
+        WHEN EXISTS (
+          SELECT 1 FROM analysis_branches
+          WHERE head_document_id = OLD.id AND id IS NOT NEW.branch_id
+        )
+        THEN RAISE(ABORT, 'analysis branch head reverse mismatch')
+      END;
+      SELECT CASE
+        WHEN EXISTS (
+          SELECT 1 FROM analysis_branches
+          WHERE forked_from_document_id = OLD.id
+            AND session_id IS NOT NEW.session_id
+        )
+        THEN RAISE(ABORT, 'analysis branch fork document reverse mismatch')
+      END;
+      SELECT CASE
+        WHEN EXISTS (
+          SELECT 1 FROM analysis_documents
+          WHERE parent_document_id = OLD.id AND session_id IS NOT NEW.session_id
+        )
+        THEN RAISE(ABORT, 'analysis turn child parent session mismatch')
       END;
     END;
   `);
