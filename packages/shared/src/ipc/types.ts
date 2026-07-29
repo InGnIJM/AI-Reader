@@ -151,6 +151,99 @@ export type CodeAnalysisStatus = 'pending' | 'running' | 'completed' | 'failed';
 export type CodeAnalysisAnnotationStatus = 'pending' | 'answered' | 'failed';
 export type CodeAnalysisMessageRole = 'user' | 'assistant';
 export type AppLanguage = 'zh-CN' | 'en-US';
+export type AnalysisSessionStatus = 'active' | 'archived';
+
+export interface AnalysisSession {
+  id: string;
+  projectId: string | null;
+  title: string;
+  status: AnalysisSessionStatus;
+  activeBranchId: string | null;
+  activeDocumentId: string | null;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AnalysisBranch {
+  id: string;
+  sessionId: string;
+  name: string;
+  parentBranchId: string | null;
+  forkedFromDocumentId: string | null;
+  headDocumentId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AnalysisTurn {
+  id: string;
+  sessionId: string;
+  branchId: string;
+  parentDocumentId: string | null;
+  goal: string;
+  contentMarkdown: string;
+  status: CodeAnalysisStatus;
+  modelId?: string;
+  toolCallCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AnalysisSessionDetail {
+  session: AnalysisSession;
+  branches: AnalysisBranch[];
+  turns: AnalysisTurn[];
+}
+
+export interface CodeAnalysisListSessionsPayload {
+  projectId: string | null;
+  status: AnalysisSessionStatus;
+  limit?: number;
+}
+
+export interface CodeAnalysisListRecentSessionsPayload {
+  limit?: number;
+}
+
+export interface CodeAnalysisRenameSessionPayload {
+  sessionId: string;
+  title: string;
+}
+
+export interface CodeAnalysisDeleteSessionPayload {
+  sessionId: string;
+  confirmed: true;
+}
+
+export interface CodeAnalysisRunTurnPayload {
+  sessionId?: string;
+  projectId?: string | null;
+  parentDocumentId?: string;
+  goal: string;
+  forceFork?: boolean;
+}
+
+export interface CodeAnalysisRunTurnResult {
+  session: AnalysisSession;
+  branch: AnalysisBranch;
+  turn: AnalysisTurn;
+}
+
+export interface CodeAnalysisCheckoutTurnPayload {
+  sessionId: string;
+  branchId: string;
+  documentId: string;
+}
+
+export interface CodeAnalysisSwitchBranchPayload {
+  sessionId: string;
+  branchId: string;
+}
+
+export interface CodeAnalysisRenameBranchPayload extends CodeAnalysisSwitchBranchPayload {
+  name: string;
+}
 
 export interface CodeAnalysisProjectData {
   id: string;
@@ -193,6 +286,12 @@ export interface CodeAnalysisAnnotationCreatePayload {
   analysisDocumentId: string;
   selectedText: string;
   question: string;
+}
+
+export interface CodeAnalysisSourceAnnotationCreatePayload
+  extends CodeAnalysisAnnotationCreatePayload {
+  sourceStartOffset: number;
+  sourceEndOffset: number;
 }
 
 export interface CodeAnalysisAnnotationData {
