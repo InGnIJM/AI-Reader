@@ -164,7 +164,6 @@ export const codeProjects = sqliteTable('code_projects', {
 export const analysisDocuments = sqliteTable('analysis_documents', {
   id: text('id').primaryKey(),
   projectId: text('project_id')
-    .notNull()
     .references(() => codeProjects.id, { onDelete: 'cascade' }),
   goal: text('goal').notNull(),
   contentMarkdown: text('content_markdown').notNull().default(''),

@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import { createLogger } from '@ai-reader/shared';
+import { migrateCodeAnalysisSchema } from './code-analysis-migration';
 
 const log = createLogger('db:sqlite');
 
@@ -151,7 +152,7 @@ export function createDatabase(dbPath: string): DatabaseClient {
 
     CREATE TABLE IF NOT EXISTS analysis_documents (
       id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL REFERENCES code_projects(id) ON DELETE CASCADE,
+      project_id TEXT REFERENCES code_projects(id) ON DELETE CASCADE,
       goal TEXT NOT NULL,
       content_markdown TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT 'pending',
@@ -208,6 +209,8 @@ export function createDatabase(dbPath: string): DatabaseClient {
     CREATE INDEX IF NOT EXISTS idx_analysis_annotations_document ON analysis_annotations(analysis_document_id);
     CREATE INDEX IF NOT EXISTS idx_analysis_discussion_messages_annotation ON analysis_discussion_messages(annotation_id);
   `);
+
+  migrateCodeAnalysisSchema(sqlite);
 
   log.info('Database initialized');
 
