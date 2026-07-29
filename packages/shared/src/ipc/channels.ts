@@ -70,6 +70,7 @@ export const IPC_CHANNELS = {
   CODE_ANALYSIS_RUN: 'codeAnalysis:run',
   CODE_ANALYSIS_GET_DOCUMENT: 'codeAnalysis:getDocument',
   CODE_ANALYSIS_LIST_DOCUMENTS: 'codeAnalysis:listDocuments',
+  CODE_ANALYSIS_LIST_RECENT_DOCUMENTS: 'codeAnalysis:listRecentDocuments',
   CODE_ANALYSIS_LIST_TRACES: 'codeAnalysis:listTraces',
   CODE_ANALYSIS_CREATE_ANNOTATION: 'codeAnalysis:createAnnotation',
   CODE_ANALYSIS_LIST_ANNOTATIONS: 'codeAnalysis:listAnnotations',

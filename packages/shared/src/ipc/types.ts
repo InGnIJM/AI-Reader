@@ -157,18 +157,19 @@ export interface CodeAnalysisProjectData {
   name: string;
   rootPath?: string;
   rootPathHash: string;
+  conversationCount?: number;
   createdAt?: string;
   updatedAt?: string;
 }
 
 export interface CodeAnalysisRunPayload {
-  projectId: string;
+  projectId: string | null;
   goal: string;
 }
 
 export interface CodeAnalysisDocumentData {
   id: string;
-  projectId: string;
+  projectId: string | null;
   goal: string;
   contentMarkdown: string;
   status: CodeAnalysisStatus;

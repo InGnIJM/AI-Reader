@@ -7,13 +7,14 @@ export interface CodeProject {
   name: string;
   rootPath: string;
   rootPathHash: string;
+  conversationCount?: number;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface AnalysisDocument {
   id: string;
-  projectId: string;
+  projectId: string | null;
   goal: string;
   contentMarkdown: string;
   status: AnalysisStatus;
