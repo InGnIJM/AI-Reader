@@ -37,6 +37,15 @@ interface DocumentRow {
   parentDocumentId: string | null;
 }
 
+const REQUIRED_TRIGGER_NAMES = [
+  'trg_analysis_branches_validate_insert',
+  'trg_analysis_branches_validate_update',
+  'trg_analysis_documents_validate_insert',
+  'trg_analysis_documents_validate_update',
+  'trg_analysis_sessions_validate_insert',
+  'trg_analysis_sessions_validate_update',
+];
+
 describe('code analysis database migration', () => {
   let directory = '';
   const connections: Database.Database[] = [];
@@ -154,6 +163,40 @@ describe('code analysis database migration', () => {
     return (
       sqlite.prepare(`SELECT id FROM ${table} ORDER BY id`).all() as Array<{ id: string }>
     ).map(({ id }) => id);
+  }
+
+  function listTriggerNames(sqlite: Database.Database): string[] {
+    return (
+      sqlite
+        .prepare(
+          `SELECT name
+           FROM sqlite_master
+           WHERE type = 'trigger' AND name LIKE 'trg_analysis_%'
+           ORDER BY name`,
+        )
+        .all() as Array<{ name: string }>
+    ).map(({ name }) => name);
+  }
+
+  function wrapDatabase(
+    sqlite: Database.Database,
+    overrides: {
+      exec?: (sql: string) => unknown;
+      pragma?: (source: string, options?: { simple?: boolean }) => unknown;
+    },
+  ): Database.Database {
+    const runPragma = sqlite.pragma.bind(sqlite) as (
+      source: string,
+      options?: { simple?: boolean },
+    ) => unknown;
+    return {
+      get inTransaction() {
+        return sqlite.inTransaction;
+      },
+      exec: overrides.exec ?? sqlite.exec.bind(sqlite),
+      prepare: sqlite.prepare.bind(sqlite),
+      pragma: overrides.pragma ?? runPragma,
+    } as unknown as Database.Database;
   }
 
   function seedSessionGraph(sqlite: Database.Database): void {
@@ -558,24 +601,141 @@ describe('code analysis database migration', () => {
     expect(parentBranchDb.pragma('foreign_key_check')).toEqual([]);
   });
 
-  it('is idempotent after the v1 marker is written', () => {
+  it('is idempotent when the same v1 database is closed and reopened', () => {
     const dbPath = createPath();
     createLegacyDatabase(dbPath).close();
-    const sqlite = openMigrated(dbPath);
-    const originalSessions = listIds(sqlite, 'analysis_sessions');
-    const originalBranches = listIds(sqlite, 'analysis_branches');
-    let hookCalls = 0;
+    const first = openMigrated(dbPath);
+    const originalSessions = listIds(first, 'analysis_sessions');
+    const originalBranches = listIds(first, 'analysis_branches');
+    const originalDocuments = listIds(first, 'analysis_documents');
+    expect(listTriggerNames(first)).toEqual(REQUIRED_TRIGGER_NAMES);
+    first.close();
 
-    migrateCodeAnalysisSchema(sqlite, {
-      beforeCommit: () => {
-        hookCalls += 1;
-      },
-    });
+    const reopened = openMigrated(dbPath);
 
-    expect(listIds(sqlite, 'analysis_sessions')).toEqual(originalSessions);
-    expect(listIds(sqlite, 'analysis_branches')).toEqual(originalBranches);
-    expect(hookCalls).toBe(0);
-    expect(sqlite.pragma('foreign_key_check')).toEqual([]);
+    expect(listIds(reopened, 'analysis_sessions')).toEqual(originalSessions);
+    expect(listIds(reopened, 'analysis_branches')).toEqual(originalBranches);
+    expect(listIds(reopened, 'analysis_documents')).toEqual(originalDocuments);
+    expect(listTriggerNames(reopened)).toEqual(REQUIRED_TRIGGER_NAMES);
+    expect(
+      reopened
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '1' });
+    expect(reopened.pragma('foreign_key_check')).toEqual([]);
+    expect(reopened.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it('rejects future schema versions without mutating the database', () => {
+    const sqlite = createLegacyDatabase(createPath(), '2');
+    const schemaBefore = sqlite
+      .prepare(
+        `SELECT type, name, sql
+         FROM sqlite_master
+         WHERE name NOT LIKE 'sqlite_%'
+         ORDER BY type, name`,
+      )
+      .all();
+    const pragma = vi.spyOn(sqlite, 'pragma');
+
+    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(/newer schema version.*2/i);
+
+    expect(
+      sqlite
+        .prepare(
+          `SELECT type, name, sql
+           FROM sqlite_master
+           WHERE name NOT LIKE 'sqlite_%'
+           ORDER BY type, name`,
+        )
+        .all(),
+    ).toEqual(schemaBefore);
+    expect(listIds(sqlite, 'analysis_documents')).toEqual(['doc-new', 'doc-old']);
+    expect(
+      pragma.mock.calls.some(([source]) => source === 'foreign_keys = OFF'),
+    ).toBe(false);
+    expect(
+      sqlite
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '2' });
+  });
+
+  it('rejects an unsupported non-numeric schema marker', () => {
+    const sqlite = createLegacyDatabase(createPath(), 'invalid');
+
+    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(
+      /unsupported code analysis schema version.*invalid/i,
+    );
+
+    expect(listIds(sqlite, 'analysis_documents')).toEqual(['doc-new', 'doc-old']);
+    expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it('rejects a stale v1 marker on a legacy schema', () => {
+    const sqlite = createLegacyDatabase(createPath(), '1');
+    const schemaBefore = sqlite
+      .prepare(
+        `SELECT type, name, sql
+         FROM sqlite_master
+         WHERE name NOT LIKE 'sqlite_%'
+         ORDER BY type, name`,
+      )
+      .all();
+
+    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(/invalid v1 schema/i);
+
+    expect(
+      sqlite
+        .prepare(
+          `SELECT type, name, sql
+           FROM sqlite_master
+           WHERE name NOT LIKE 'sqlite_%'
+           ORDER BY type, name`,
+        )
+        .all(),
+    ).toEqual(schemaBefore);
+    expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it.each([
+    {
+      name: 'table',
+      damage: 'DROP TABLE analysis_file_cleanup_queue',
+    },
+    {
+      name: 'column',
+      damage: 'ALTER TABLE analysis_annotations DROP COLUMN selected_text',
+    },
+    {
+      name: 'index',
+      damage: 'DROP INDEX idx_analysis_documents_session',
+    },
+    {
+      name: 'trigger',
+      damage: 'DROP TRIGGER trg_analysis_documents_validate_update',
+    },
+    {
+      name: 'trigger definition',
+      damage: `
+        DROP TRIGGER trg_analysis_documents_validate_update;
+        CREATE TRIGGER trg_analysis_documents_validate_update
+        BEFORE UPDATE ON analysis_documents
+        BEGIN
+          SELECT 1;
+        END
+      `,
+    },
+  ])('rejects an incomplete v1 schema with a missing or stale $name', ({ damage }) => {
+    const sqlite = openMigrated(':memory:');
+    sqlite.exec(damage);
+
+    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(/invalid v1 schema/i);
+    expect(
+      sqlite
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '1' });
     expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
   });
 
@@ -636,6 +796,39 @@ describe('code analysis database migration', () => {
         .prepare('SELECT value FROM app_settings WHERE key = ?')
         .get('code_analysis_session_schema'),
     ).toEqual({ value: '0' });
+    expect(sqlite.pragma('foreign_key_check')).toEqual([]);
+    expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it('rolls back when the pre-commit hook changes a preserved runtime count', () => {
+    const sqlite = createLegacyDatabase(createPath());
+
+    expect(() =>
+      migrateCodeAnalysisSchema(sqlite, {
+        beforeCommit: () => {
+          sqlite.prepare('DELETE FROM analysis_tool_traces WHERE id = ?').run('trace-old');
+        },
+      }),
+    ).toThrow(/analysis_tool_traces count changed/i);
+
+    expect(listIds(sqlite, 'analysis_documents')).toEqual(['doc-new', 'doc-old']);
+    expect(listIds(sqlite, 'analysis_annotations')).toEqual([
+      'annotation-new',
+      'annotation-old',
+    ]);
+    expect(listIds(sqlite, 'analysis_discussion_messages')).toEqual([
+      'reply-new',
+      'reply-old',
+    ]);
+    expect(listIds(sqlite, 'analysis_tool_traces')).toEqual([
+      'trace-new',
+      'trace-old',
+    ]);
+    expect(
+      sqlite
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toBeUndefined();
     expect(sqlite.pragma('foreign_key_check')).toEqual([]);
     expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
   });
@@ -740,15 +933,80 @@ describe('code analysis database migration', () => {
   });
 
   it('reports failure when SQLite cannot restore foreign key enforcement', () => {
-    const sqlite = {
-      inTransaction: false,
-      prepare: () => ({ get: () => ({ value: '1' }) }),
-      pragma: (statement: string) => (statement === 'foreign_keys' ? 0 : undefined),
-    } as unknown as Database.Database;
+    const realSqlite = openMigrated(':memory:');
+    const runPragma = realSqlite.pragma.bind(realSqlite) as Database.Database['pragma'];
+    const sqlite = wrapDatabase(realSqlite, {
+      pragma: ((statement: string, options?: unknown) => {
+        if (statement === 'foreign_keys') {
+          return 0;
+        }
+
+        return runPragma(statement, options as never);
+      }) as Database.Database['pragma'],
+    });
 
     expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(
       'Failed to restore SQLite foreign key enforcement',
     );
+
+    realSqlite.close();
+  });
+
+  it('verifies foreign keys are disabled before beginning destructive work', () => {
+    const sqlite = createLegacyDatabase(createPath());
+    let beginCalls = 0;
+    const runPragma = sqlite.pragma.bind(sqlite) as (
+      source: string,
+      options?: { simple?: boolean },
+    ) => unknown;
+    const wrapped = wrapDatabase(sqlite, {
+      exec: (sql) => {
+        if (sql === 'BEGIN IMMEDIATE') beginCalls += 1;
+        return sqlite.exec(sql);
+      },
+      pragma: (source, options) => {
+        if (source === 'foreign_keys = OFF') return undefined;
+        return runPragma(source, options);
+      },
+    });
+
+    expect(() => migrateCodeAnalysisSchema(wrapped)).toThrow(
+      /failed to disable SQLite foreign key enforcement/i,
+    );
+
+    expect(beginCalls).toBe(0);
+    expect(
+      sqlite
+        .prepare(
+          `SELECT name FROM pragma_table_info('analysis_documents')
+           WHERE name = 'session_id'`,
+        )
+        .get(),
+    ).toBeUndefined();
+    expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it('restores foreign keys when beginning the migration fails', () => {
+    const sqlite = createLegacyDatabase(createPath());
+    const wrapped = wrapDatabase(sqlite, {
+      exec: (sql) => {
+        if (sql === 'BEGIN IMMEDIATE') throw new Error('forced begin failure');
+        return sqlite.exec(sql);
+      },
+    });
+
+    expect(() => migrateCodeAnalysisSchema(wrapped)).toThrow('forced begin failure');
+
+    expect(sqlite.inTransaction).toBe(false);
+    expect(
+      sqlite
+        .prepare(
+          `SELECT name FROM pragma_table_info('analysis_documents')
+           WHERE name = 'session_id'`,
+        )
+        .get(),
+    ).toBeUndefined();
+    expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
   });
 
   it('closes a fresh database client', () => {

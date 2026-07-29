@@ -4,6 +4,124 @@ import type Database from 'better-sqlite3';
 
 const SESSION_SCHEMA_KEY = 'code_analysis_session_schema';
 const SESSION_SCHEMA_VERSION = '1';
+const PRESERVED_TABLES = [
+  'analysis_documents',
+  'analysis_annotations',
+  'analysis_discussion_messages',
+  'analysis_tool_traces',
+] as const;
+const REQUIRED_V1_COLUMNS: Record<string, string[]> = {
+  analysis_sessions: [
+    'id',
+    'project_id',
+    'title',
+    'status',
+    'active_branch_id',
+    'active_document_id',
+    'archived_at',
+    'created_at',
+    'updated_at',
+  ],
+  analysis_branches: [
+    'id',
+    'session_id',
+    'name',
+    'parent_branch_id',
+    'forked_from_document_id',
+    'head_document_id',
+    'created_at',
+    'updated_at',
+  ],
+  analysis_documents: [
+    'id',
+    'project_id',
+    'session_id',
+    'branch_id',
+    'parent_document_id',
+    'goal',
+    'content_markdown',
+    'status',
+    'model_id',
+    'tool_call_count',
+    'created_at',
+    'updated_at',
+  ],
+  analysis_tool_traces: [
+    'id',
+    'analysis_document_id',
+    'step_index',
+    'tool_name',
+    'tool_args_json',
+    'result_summary',
+    'created_at',
+  ],
+  analysis_annotations: [
+    'id',
+    'analysis_document_id',
+    'anchor_start_offset',
+    'anchor_end_offset',
+    'anchor_exact_text',
+    'selected_text',
+    'anchor_prefix',
+    'anchor_suffix',
+    'question',
+    'status',
+    'created_at',
+    'updated_at',
+  ],
+  analysis_discussion_messages: [
+    'id',
+    'annotation_id',
+    'role',
+    'content',
+    'model_id',
+    'created_at',
+  ],
+  analysis_file_cleanup_queue: [
+    'id',
+    'document_id',
+    'relative_path',
+    'attempts',
+    'last_error',
+    'created_at',
+    'updated_at',
+  ],
+};
+const REQUIRED_V1_INDEXES = [
+  'ux_code_projects_root_path_hash',
+  'idx_analysis_sessions_project_status_updated',
+  'idx_analysis_branches_session',
+  'idx_analysis_documents_project',
+  'idx_analysis_documents_session',
+  'idx_analysis_documents_branch',
+  'idx_analysis_documents_parent',
+  'idx_analysis_tool_traces_document',
+  'idx_analysis_annotations_document',
+  'idx_analysis_discussion_messages_annotation',
+  'idx_analysis_file_cleanup_queue_created',
+];
+const REQUIRED_V1_TRIGGERS: Record<string, string[]> = {
+  trg_analysis_sessions_validate_insert: ['active_branch_id', 'active_document_id'],
+  trg_analysis_sessions_validate_update: ['active_branch_id', 'active_document_id'],
+  trg_analysis_branches_validate_insert: [
+    'parent_branch_id',
+    'forked_from_document_id',
+    'head_document_id',
+  ],
+  trg_analysis_branches_validate_update: [
+    'active_branch_id = old.id',
+    'parent_branch_id = old.id',
+  ],
+  trg_analysis_documents_validate_insert: ['branch_id', 'parent_document_id'],
+  trg_analysis_documents_validate_update: [
+    'active_document_id = old.id',
+    'head_document_id = old.id',
+    'forked_from_document_id = old.id',
+    'parent_document_id = old.id',
+  ],
+};
+
+type PreservedCounts = Record<(typeof PRESERVED_TABLES)[number], number>;
 
 interface ProjectRow {
   id: string;
@@ -46,13 +164,28 @@ export function migrateCodeAnalysisSchema(
     throw new Error('Code analysis migration requires an idle database connection');
   }
 
-  if (readSchemaVersion(sqlite) === SESSION_SCHEMA_VERSION) {
+  const schemaVersion = readSchemaVersion(sqlite);
+  if (schemaVersion !== undefined && schemaVersion !== '0' && schemaVersion !== '1') {
+    const numericVersion = Number(schemaVersion);
+    if (Number.isInteger(numericVersion) && numericVersion > 1) {
+      throw new Error(
+        `Database uses newer schema version ${schemaVersion}; supported version is 1`,
+      );
+    }
+    throw new Error(`Unsupported code analysis schema version: ${schemaVersion}`);
+  }
+  if (schemaVersion === SESSION_SCHEMA_VERSION) {
+    validateV1Schema(sqlite);
     restoreForeignKeys(sqlite);
     return;
   }
 
-  sqlite.pragma('foreign_keys = OFF');
+  const preservedCounts = snapshotPreservedCounts(sqlite);
   try {
+    sqlite.pragma('foreign_keys = OFF');
+    if (sqlite.pragma('foreign_keys', { simple: true }) !== 0) {
+      throw new Error('Failed to disable SQLite foreign key enforcement');
+    }
     sqlite.exec('BEGIN IMMEDIATE');
 
     createTransitionalTables(sqlite);
@@ -65,6 +198,7 @@ export function migrateCodeAnalysisSchema(
     createIndexes(sqlite);
     createOwnershipAndCycleTriggers(sqlite);
 
+    options.beforeCommit?.();
     const foreignKeyErrors = sqlite.pragma('foreign_key_check') as unknown[];
     if (foreignKeyErrors.length > 0) {
       throw new Error(
@@ -73,15 +207,90 @@ export function migrateCodeAnalysisSchema(
         )}`,
       );
     }
+    assertPreservedCounts(sqlite, preservedCounts);
 
     writeSchemaVersion(sqlite);
-    options.beforeCommit?.();
     sqlite.exec('COMMIT');
   } catch (error) {
     if (sqlite.inTransaction) sqlite.exec('ROLLBACK');
     throw error;
   } finally {
     restoreForeignKeys(sqlite);
+  }
+}
+
+function validateV1Schema(sqlite: Database.Database): void {
+  const errors: string[] = [];
+  for (const [table, requiredColumns] of Object.entries(REQUIRED_V1_COLUMNS)) {
+    if (!hasTable(sqlite, table)) {
+      errors.push(`missing table ${table}`);
+      continue;
+    }
+    const columns = new Set(
+      (
+        sqlite.prepare(`SELECT name FROM pragma_table_info(?)`).all(table) as Array<{
+          name: string;
+        }>
+      ).map(({ name }) => name),
+    );
+    for (const column of requiredColumns) {
+      if (!columns.has(column)) errors.push(`missing column ${table}.${column}`);
+    }
+  }
+  for (const index of REQUIRED_V1_INDEXES) {
+    if (!hasSchemaObject(sqlite, 'index', index)) errors.push(`missing index ${index}`);
+  }
+  for (const [trigger, requiredFragments] of Object.entries(REQUIRED_V1_TRIGGERS)) {
+    const row = sqlite
+      .prepare(
+        `SELECT sql
+         FROM sqlite_master
+         WHERE type = 'trigger' AND name = ?`,
+      )
+      .get(trigger) as { sql: string | null } | undefined;
+    if (!row?.sql) {
+      errors.push(`missing trigger ${trigger}`);
+      continue;
+    }
+    const normalizedSql = row.sql.toLowerCase().replace(/\s+/g, ' ');
+    for (const fragment of requiredFragments) {
+      if (!normalizedSql.includes(fragment)) {
+        errors.push(`stale trigger ${trigger}`);
+        break;
+      }
+    }
+  }
+  if (errors.length > 0) {
+    throw new Error(`Invalid v1 schema: ${errors.join(', ')}`);
+  }
+}
+
+function snapshotPreservedCounts(sqlite: Database.Database): PreservedCounts {
+  return Object.fromEntries(
+    PRESERVED_TABLES.map((table) => [
+      table,
+      hasTable(sqlite, table)
+        ? (
+            sqlite.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as {
+              count: number;
+            }
+          ).count
+        : 0,
+    ]),
+  ) as PreservedCounts;
+}
+
+function assertPreservedCounts(
+  sqlite: Database.Database,
+  expected: PreservedCounts,
+): void {
+  const actual = snapshotPreservedCounts(sqlite);
+  for (const table of PRESERVED_TABLES) {
+    if (actual[table] !== expected[table]) {
+      throw new Error(
+        `${table} count changed from ${expected[table]} to ${actual[table]}`,
+      );
+    }
   }
 }
 
@@ -114,14 +323,22 @@ function restoreForeignKeys(sqlite: Database.Database): void {
 }
 
 function hasTable(sqlite: Database.Database, table: string): boolean {
+  return hasSchemaObject(sqlite, 'table', table);
+}
+
+function hasSchemaObject(
+  sqlite: Database.Database,
+  type: 'index' | 'table',
+  name: string,
+): boolean {
   return Boolean(
     sqlite
       .prepare(
         `SELECT 1
          FROM sqlite_master
-         WHERE type = 'table' AND name = ?`,
+         WHERE type = ? AND name = ?`,
       )
-      .get(table),
+      .get(type, name),
   );
 }
 
