@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { buildProjectContext, summarizeToolResult } from '../context-builder';
-import { buildAnalysisMessages } from '../prompt-builder';
+import { buildAnalysisMessages, buildLocalDocumentMessages } from '../prompt-builder';
 import { AnalysisReplyEngine, buildAnalysisReplyMessages } from '../reply-engine';
 
 describe('code analysis context and prompt builders', () => {
@@ -57,6 +57,19 @@ describe('code analysis context and prompt builders', () => {
 
     expect(analysisMessages[0].content).toContain('Simplified Chinese');
     expect(replyMessages[0].content).toContain('English');
+  });
+
+  it('builds a projectless document prompt without directory access', () => {
+    const messages = buildLocalDocumentMessages({
+      goal: 'Write a pnpm guide',
+      outputLanguage: 'en-US',
+    });
+    const prompt = messages.map((message) => message.content).join('\n');
+
+    expect(prompt).toContain('Write a pnpm guide');
+    expect(prompt).toContain('no file tools are available');
+    expect(prompt).toContain('complete Markdown document only');
+    expect(prompt).toContain('Write in English');
   });
 
   it('marks an annotation failed when the model returns an empty reply', async () => {

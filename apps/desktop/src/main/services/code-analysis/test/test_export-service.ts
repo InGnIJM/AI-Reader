@@ -1,3 +1,6 @@
+import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createDatabase, type DatabaseClient } from '../../../db/client';
 import { AnalysisExportService } from '../export-service';
@@ -67,17 +70,22 @@ describe('AnalysisExportService', () => {
     expect(JSON.stringify(exported)).not.toContain('/secret/path');
 
     const targetDb = createDatabase(':memory:');
+    const localDocumentsPath = mkdtempSync(join(tmpdir(), 'ai-reader-import-'));
     try {
-      const targetService = new AnalysisExportService(targetDb);
+      const targetService = new AnalysisExportService(targetDb, localDocumentsPath);
       const imported = await targetService.importJson(exported);
 
       expect(imported.contentMarkdown).toContain('# Startup');
+      expect(
+        readFileSync(join(localDocumentsPath, imported.id, 'document.md'), 'utf8'),
+      ).toContain('# Startup');
       const restoredMessages = targetDb.db
         .prepare('SELECT COUNT(*) AS count FROM analysis_discussion_messages')
         .get();
       expect(restoredMessages).toEqual({ count: 1 });
     } finally {
       targetDb.close();
+      rmSync(localDocumentsPath, { recursive: true, force: true });
     }
   });
 });
