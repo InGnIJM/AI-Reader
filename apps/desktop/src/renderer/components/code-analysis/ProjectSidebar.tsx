@@ -459,45 +459,75 @@ export function ProjectSidebar({
 
   function renderProjectTree() {
     if (isSessionMode) {
+      // Get no-project sessions
+      const noProjectSessions = (recentSessions ?? []).filter((s) => !s.projectId);
+
       return (
         <section className={`${styles.sidebarSection} ${styles.projectTreeSection}`}>
           <h2>{labels.projects}</h2>
           <div className={styles.projectTree}>
-            {projects.length === 0 ? (
-              <p className={styles.muted}>{labels.noProjects}</p>
-            ) : (
-              projects.map((project) => {
-                const expanded = expandedProjectIds.has(project.id);
-                const projectSessions = effectiveSessionsByProject[project.id] ?? [];
-                return (
-                  <div className={styles.folderGroup} key={project.id}>
-                    <button
-                      className={styles.folderRow}
-                      data-active={project.id === selectedProjectId}
-                      type="button"
-                      aria-expanded={expanded}
-                      onClick={() => onToggleProject?.(project)}
-                    >
-                      <span className="material-symbols-rounded" aria-hidden="true">
-                        {expanded ? 'expand_more' : 'chevron_right'}
-                      </span>
-                      <span className="material-symbols-rounded" aria-hidden="true">
-                        {expanded ? 'folder_open' : 'folder'}
-                      </span>
-                      <span>{project.name}</span>
-                      <span className={styles.folderCount} aria-hidden="true">
-                        {project.conversationCount ?? projectSessions.length}
-                      </span>
-                    </button>
-                    {expanded ? (
-                      <div className={styles.folderChildren}>
-                        {renderSessionList(projectSessions, labels.noConversations)}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })
-            )}
+            {/* No-project folder (local documents) */}
+            <div className={styles.folderGroup}>
+              <button
+                className={styles.folderRow}
+                data-active={!selectedProjectId}
+                type="button"
+                aria-expanded={localExpanded}
+                onClick={() => {
+                  setLocalExpanded((current) => !current);
+                  onSelectLocal?.();
+                }}
+              >
+                <span className="material-symbols-rounded" aria-hidden="true">
+                  {localExpanded ? 'expand_more' : 'chevron_right'}
+                </span>
+                <span className="material-symbols-rounded" aria-hidden="true">
+                  {localExpanded ? 'folder_open' : 'folder'}
+                </span>
+                <span>{labels.localDocuments}</span>
+                <span className={styles.folderCount} aria-hidden="true">
+                  {noProjectSessions.length}
+                </span>
+              </button>
+              {localExpanded ? (
+                <div className={styles.folderChildren}>
+                  {renderSessionList(noProjectSessions, labels.noConversations)}
+                </div>
+              ) : null}
+            </div>
+
+            {/* Project folders */}
+            {projects.map((project) => {
+              const expanded = expandedProjectIds.has(project.id);
+              const projectSessions = effectiveSessionsByProject[project.id] ?? [];
+              return (
+                <div className={styles.folderGroup} key={project.id}>
+                  <button
+                    className={styles.folderRow}
+                    data-active={project.id === selectedProjectId}
+                    type="button"
+                    aria-expanded={expanded}
+                    onClick={() => onToggleProject?.(project)}
+                  >
+                    <span className="material-symbols-rounded" aria-hidden="true">
+                      {expanded ? 'expand_more' : 'chevron_right'}
+                    </span>
+                    <span className="material-symbols-rounded" aria-hidden="true">
+                      {expanded ? 'folder_open' : 'folder'}
+                    </span>
+                    <span>{project.name}</span>
+                    <span className={styles.folderCount} aria-hidden="true">
+                      {project.conversationCount ?? projectSessions.length}
+                    </span>
+                  </button>
+                  {expanded ? (
+                    <div className={styles.folderChildren}>
+                      {renderSessionList(projectSessions, labels.noConversations)}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </section>
       );
