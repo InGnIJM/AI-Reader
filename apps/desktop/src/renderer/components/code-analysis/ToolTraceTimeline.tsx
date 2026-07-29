@@ -6,11 +6,19 @@ export interface ToolTraceItem {
   resultSummary: string;
 }
 
-export function ToolTraceTimeline({ traces }: { traces: ToolTraceItem[] }) {
+export function ToolTraceTimeline({
+  traces,
+  ariaLabel = 'Tool trace',
+  emptyLabel = 'No tool calls yet.',
+}: {
+  traces: ToolTraceItem[];
+  ariaLabel?: string;
+  emptyLabel?: string;
+}) {
   return (
-    <div className={styles.traceList} aria-label="Tool trace">
+    <div className={styles.traceList} aria-label={ariaLabel}>
       {traces.length === 0 ? (
-        <p className={styles.muted}>No tool calls yet.</p>
+        <p className={styles.muted}>{emptyLabel}</p>
       ) : (
         traces.map((trace, index) => (
           <div className={styles.traceItem} key={trace.id ?? `${trace.toolName}-${index}`}>

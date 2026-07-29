@@ -2,18 +2,26 @@ import styles from './CodeAnalysisComponents.module.css';
 
 interface ExportMenuProps {
   disabled?: boolean;
+  markdownLabel?: string;
+  jsonLabel?: string;
   onExportMarkdown: () => void;
   onExportJson: () => void;
 }
 
-export function ExportMenu({ disabled, onExportMarkdown, onExportJson }: ExportMenuProps) {
+export function ExportMenu({
+  disabled,
+  markdownLabel = 'Export MD',
+  jsonLabel = 'Export JSON',
+  onExportMarkdown,
+  onExportJson,
+}: ExportMenuProps) {
   return (
     <div className={styles.exportMenu}>
       <button type="button" onClick={onExportMarkdown} disabled={disabled}>
-        Export MD
+        {markdownLabel}
       </button>
       <button type="button" onClick={onExportJson} disabled={disabled}>
-        Export JSON
+        {jsonLabel}
       </button>
     </div>
   );
