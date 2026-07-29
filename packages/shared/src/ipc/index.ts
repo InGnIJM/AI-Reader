@@ -25,4 +25,5 @@ export type {
   CodeAnalysisAnnotationCreatePayload,
   CodeAnalysisAnnotationData,
   CodeAnalysisDiscussionMessageData,
+  AppLanguage,
 } from './types';

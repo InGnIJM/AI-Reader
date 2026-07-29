@@ -150,6 +150,7 @@ export interface OpenDirectoryDialogResult {
 export type CodeAnalysisStatus = 'pending' | 'running' | 'completed' | 'failed';
 export type CodeAnalysisAnnotationStatus = 'pending' | 'answered' | 'failed';
 export type CodeAnalysisMessageRole = 'user' | 'assistant';
+export type AppLanguage = 'zh-CN' | 'en-US';
 
 export interface CodeAnalysisProjectData {
   id: string;
