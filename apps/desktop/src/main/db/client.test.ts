@@ -17,36 +17,67 @@ describe('SQLite Client', () => {
     expect(client.db).toBeDefined();
   });
 
-  it('should create all 10 MVP tables', () => {
+  it('should create the complete transitional table inventory', () => {
     const tables = client.db
       .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .all() as { name: string }[];
     const tableNames = tables.map((t) => t.name);
 
-    expect(tableNames).toContain('workspaces');
-    expect(tableNames).toContain('documents');
-    expect(tableNames).toContain('chapters');
-    expect(tableNames).toContain('generated_articles');
-    expect(tableNames).toContain('generated_sections');
-    expect(tableNames).toContain('generation_jobs');
-    expect(tableNames).toContain('annotations');
-    expect(tableNames).toContain('discussion_messages');
-    expect(tableNames).toContain('llm_usage_records');
-    expect(tableNames).toContain('app_settings');
+    expect(tableNames).toEqual([
+      'analysis_annotations',
+      'analysis_branches',
+      'analysis_discussion_messages',
+      'analysis_documents',
+      'analysis_file_cleanup_queue',
+      'analysis_sessions',
+      'analysis_tool_traces',
+      'annotations',
+      'app_settings',
+      'chapters',
+      'code_projects',
+      'discussion_messages',
+      'documents',
+      'generated_articles',
+      'generated_sections',
+      'generation_jobs',
+      'llm_usage_records',
+      'workspaces',
+    ]);
   });
 
-  it('should create indexes', () => {
+  it('should create the complete transitional index inventory', () => {
     const indexes = client.db
       .prepare("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_%'")
       .all() as { name: string }[];
-    const indexNames = indexes.map((i) => i.name);
+    const indexNames = indexes.map((i) => i.name).sort();
 
-    expect(indexNames).toContain('idx_documents_workspace');
-    expect(indexNames).toContain('idx_chapters_document');
-    expect(indexNames).toContain('idx_annotations_article');
-    expect(indexNames).toContain('idx_annotations_section');
-    expect(indexNames).toContain('idx_discussion_messages_annotation');
-    expect(indexNames).toContain('idx_generated_sections_article');
+    expect(indexNames).toEqual([
+      'idx_analysis_annotations_document',
+      'idx_analysis_branches_session',
+      'idx_analysis_discussion_messages_annotation',
+      'idx_analysis_documents_branch',
+      'idx_analysis_documents_parent',
+      'idx_analysis_documents_project',
+      'idx_analysis_documents_session',
+      'idx_analysis_file_cleanup_queue_created',
+      'idx_analysis_sessions_project_status_updated',
+      'idx_analysis_tool_traces_document',
+      'idx_annotations_article',
+      'idx_annotations_section',
+      'idx_chapters_document',
+      'idx_discussion_messages_annotation',
+      'idx_documents_workspace',
+      'idx_generated_articles_source',
+      'idx_generated_sections_article',
+      'idx_generation_jobs_document',
+    ]);
+    expect(
+      client.db
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type='index' AND name = 'ux_code_projects_root_path_hash'",
+        )
+        .get(),
+    ).toEqual({ name: 'ux_code_projects_root_path_hash' });
   });
 
   it('should enable WAL mode (or memory for :memory: db)', () => {
