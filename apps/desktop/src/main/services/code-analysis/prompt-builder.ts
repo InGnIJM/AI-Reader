@@ -43,3 +43,35 @@ export function buildAnalysisMessages(input: BuildAnalysisMessagesInput): ChatMe
     },
   ];
 }
+
+export function buildLocalDocumentMessages(input: {
+  goal: string;
+  outputLanguage?: AppLanguage;
+}): ChatMessage[] {
+  const languageInstruction =
+    input.outputLanguage === 'en-US'
+      ? 'Write in English unless the user explicitly requests another language.'
+      : 'Write in Simplified Chinese unless the user explicitly requests another language.';
+  return [
+    {
+      role: 'system',
+      content: [
+        'You create self-contained Markdown documents inside AI-Reader.',
+        'No project directory is attached and no file tools are available.',
+        'Do not claim to have read local files or paths.',
+        languageInstruction,
+      ].join('\n'),
+    },
+    {
+      role: 'user',
+      content: [
+        '## Document Request',
+        input.goal,
+        '',
+        '## Output Contract',
+        'Return the complete Markdown document only.',
+        'Clearly label uncertainty when the request lacks required source material.',
+      ].join('\n'),
+    },
+  ];
+}

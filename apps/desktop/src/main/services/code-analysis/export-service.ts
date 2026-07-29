@@ -1,4 +1,6 @@
 import { randomUUID } from 'crypto';
+import { mkdirSync, writeFileSync } from 'fs';
+import { join } from 'path';
 
 import type { DatabaseClient } from '../../db/client';
 import type { AnalysisDocument } from './types';
@@ -42,12 +44,15 @@ interface ExportDocumentRow {
   contentMarkdown: string;
   modelId?: string;
   createdAt: string;
-  projectName: string;
-  rootPathHash: string;
+  projectName: string | null;
+  rootPathHash: string | null;
 }
 
 export class AnalysisExportService {
-  constructor(private readonly db: DatabaseClient) {}
+  constructor(
+    private readonly db: DatabaseClient,
+    private readonly localDocumentsPath?: string,
+  ) {}
 
   async exportMarkdown(documentId: string): Promise<string> {
     const document = this.getExportDocument(documentId);
@@ -82,8 +87,8 @@ export class AnalysisExportService {
     return {
       schemaVersion: 1,
       type: 'code-analysis-document',
-      sourceDirectoryName: document.projectName,
-      sourceDirectoryPathHash: document.rootPathHash,
+      sourceDirectoryName: document.projectName ?? 'No Project',
+      sourceDirectoryPathHash: document.rootPathHash ?? '',
       analysisGoal: document.goal,
       analysisMarkdown: document.contentMarkdown,
       toolTrace: this.listToolTrace(documentId),
@@ -102,16 +107,7 @@ export class AnalysisExportService {
     }
 
     const now = new Date().toISOString();
-    const projectId = randomUUID();
     const documentId = randomUUID();
-    this.db.db
-      .prepare(
-        `
-      INSERT INTO code_projects (id, name, root_path, root_path_hash, created_at, updated_at)
-      VALUES (?, ?, '', ?, ?, ?)
-    `,
-      )
-      .run(projectId, payload.sourceDirectoryName, payload.sourceDirectoryPathHash, now, now);
 
     this.db.db
       .prepare(
@@ -123,7 +119,7 @@ export class AnalysisExportService {
       )
       .run(
         documentId,
-        projectId,
+        null,
         payload.analysisGoal,
         payload.analysisMarkdown,
         payload.modelInfo.modelId ?? null,
@@ -202,6 +198,11 @@ export class AnalysisExportService {
       )
       .get(documentId) as AnalysisDocument | undefined;
     if (!row) throw new Error(`Imported analysis document not found: ${documentId}`);
+    if (this.localDocumentsPath?.trim()) {
+      const outputDirectory = join(this.localDocumentsPath, documentId);
+      mkdirSync(outputDirectory, { recursive: true });
+      writeFileSync(join(outputDirectory, 'document.md'), row.contentMarkdown, 'utf8');
+    }
     return row;
   }
 
@@ -212,7 +213,7 @@ export class AnalysisExportService {
       SELECT d.id, d.goal, d.content_markdown AS contentMarkdown, d.model_id AS modelId,
              d.created_at AS createdAt, p.name AS projectName, p.root_path_hash AS rootPathHash
       FROM analysis_documents d
-      INNER JOIN code_projects p ON p.id = d.project_id
+      LEFT JOIN code_projects p ON p.id = d.project_id
       WHERE d.id = ?
     `,
       )
