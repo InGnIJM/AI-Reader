@@ -11,11 +11,13 @@ import { registerDocumentHandlers } from './documents';
 import { registerJobHandlers } from './jobs';
 import { registerAnnotationHandlers } from './annotations';
 import { registerCodeAnalysisHandlers } from './code-analysis';
+import { registerSettingsHandlers } from './settings';
 import type { DatabaseClient } from '../db/client';
 import { WorkspaceService } from '../services/workspace';
 import { DocumentImportService } from '../services/document-import';
 import { GenerationJobService } from '../services/generation-job';
 import { AnnotationService } from '../services/annotation';
+import { SettingsService } from '../services/settings-service';
 import {
   AnalysisAnnotationService,
   AnalysisExportService,
@@ -41,23 +43,30 @@ export function registerAllHandlers(db: DatabaseClient): void {
   const documentImportService = new DocumentImportService(db);
   const jobService = new GenerationJobService(db);
   const annotationService = new AnnotationService(db);
+  const settingsService = new SettingsService(db);
   const llmConfig = loadLLMConfig();
   const llmProvider = new OpenAICompatibleProvider({
     apiKey: llmConfig.apiKey,
     baseUrl: llmConfig.baseUrl,
     defaultModel: llmConfig.model,
   });
-  const codeAnalysisService = new CodeAnalysisService({ db, llm: llmProvider });
+  const codeAnalysisService = new CodeAnalysisService({
+    db,
+    llm: llmProvider,
+    settings: settingsService,
+  });
   const analysisAnnotationService = new AnalysisAnnotationService(db);
   const analysisReplyEngine = new AnalysisReplyEngine({
     db,
     llm: llmProvider,
     annotationService: analysisAnnotationService,
+    settings: settingsService,
   });
   const analysisExportService = new AnalysisExportService(db);
 
   // 注册各模块处理器
   registerSystemHandlers();
+  registerSettingsHandlers(settingsService);
   registerWorkspaceHandlers(workspaceService);
   registerDocumentHandlers(documentImportService);
   registerJobHandlers(jobService);
