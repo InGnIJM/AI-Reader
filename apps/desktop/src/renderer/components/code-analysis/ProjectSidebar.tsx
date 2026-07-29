@@ -317,6 +317,17 @@ export function ProjectSidebar({
 
   const isSessionMode = recentSessions !== undefined;
 
+  // Derive sessionsByProject from recentSessions if not explicitly provided
+  const effectiveSessionsByProject = sessionsByProject && Object.keys(sessionsByProject).length > 0
+    ? sessionsByProject
+    : (recentSessions ?? []).reduce<Record<string, AnalysisSession[]>>((acc, session) => {
+        if (session.projectId) {
+          acc[session.projectId] = acc[session.projectId] ?? [];
+          acc[session.projectId].push(session);
+        }
+        return acc;
+      }, {});
+
   const handleContextMenu = useCallback((e: React.MouseEvent, session: AnalysisSession) => {
     setContextMenu({
       x: e.clientX,
@@ -457,7 +468,7 @@ export function ProjectSidebar({
             ) : (
               projects.map((project) => {
                 const expanded = expandedProjectIds.has(project.id);
-                const projectSessions = sessionsByProject[project.id] ?? [];
+                const projectSessions = effectiveSessionsByProject[project.id] ?? [];
                 return (
                   <div className={styles.folderGroup} key={project.id}>
                     <button
