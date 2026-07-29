@@ -35,7 +35,7 @@ const log = createLogger('ipc');
  *
  * @param db 数据库客户端实例
  */
-export function registerAllHandlers(db: DatabaseClient): void {
+export function registerAllHandlers(db: DatabaseClient, localDocumentsPath: string): void {
   log.info('Registering IPC handlers...');
 
   // 创建服务实例
@@ -54,6 +54,7 @@ export function registerAllHandlers(db: DatabaseClient): void {
     db,
     llm: llmProvider,
     settings: settingsService,
+    localDocumentsPath,
   });
   const analysisAnnotationService = new AnalysisAnnotationService(db);
   const analysisReplyEngine = new AnalysisReplyEngine({
@@ -62,7 +63,7 @@ export function registerAllHandlers(db: DatabaseClient): void {
     annotationService: analysisAnnotationService,
     settings: settingsService,
   });
-  const analysisExportService = new AnalysisExportService(db);
+  const analysisExportService = new AnalysisExportService(db, localDocumentsPath);
 
   // 注册各模块处理器
   registerSystemHandlers();

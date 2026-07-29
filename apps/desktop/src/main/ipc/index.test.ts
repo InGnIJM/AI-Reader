@@ -30,7 +30,7 @@ vi.mock('fs/promises', () => ({
 describe('IPC registerAllHandlers', () => {
   it('should register all IPC handlers', () => {
     const db = createDatabase(':memory:');
-    registerAllHandlers(db);
+    registerAllHandlers(db, 'C:/local-documents');
 
     // System
     expect(handlers.has(IPC_CHANNELS.SYSTEM_GET_VERSION)).toBe(true);

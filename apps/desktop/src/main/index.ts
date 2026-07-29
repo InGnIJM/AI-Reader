@@ -118,7 +118,7 @@ app.whenReady().then(() => {
   const db = createDatabase(dbPath);
 
   // Register all IPC handlers (creates service instances internally)
-  registerAllHandlers(db);
+  registerAllHandlers(db, join(app.getPath('userData'), 'generated-documents'));
 
   createWindow();
 
