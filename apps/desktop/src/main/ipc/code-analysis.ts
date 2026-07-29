@@ -1,12 +1,24 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron';
 import { IPC_CHANNELS, createLogger } from '@ai-reader/shared';
 import type {
+  AnalysisBranch,
+  AnalysisSession,
+  AnalysisSessionDetail,
+  AnalysisTurn,
   CodeAnalysisAnnotationCreatePayload,
   CodeAnalysisAnnotationData,
+  CodeAnalysisCheckoutTurnPayload,
+  CodeAnalysisDeleteSessionPayload,
   CodeAnalysisDiscussionMessageData,
   CodeAnalysisDocumentData,
+  CodeAnalysisListSessionsPayload,
   CodeAnalysisProjectData,
+  CodeAnalysisRenameBranchPayload,
+  CodeAnalysisRenameSessionPayload,
   CodeAnalysisRunPayload,
+  CodeAnalysisRunTurnPayload,
+  CodeAnalysisRunTurnResult,
+  CodeAnalysisSwitchBranchPayload,
   CodeAnalysisToolTraceData,
   IPCResult,
   OpenDirectoryDialogResult,
@@ -14,8 +26,10 @@ import type {
 import type {
   AireaderCodeAnalysisExport,
   AnalysisAnnotationService,
+  AnalysisBranchService,
   AnalysisExportService,
   AnalysisReplyEngine,
+  AnalysisSessionService,
   CodeAnalysisService,
 } from '../services/code-analysis';
 import {
@@ -31,6 +45,8 @@ export interface CodeAnalysisHandlerDeps {
   analysisAnnotationService: AnalysisAnnotationService;
   analysisReplyEngine: AnalysisReplyEngine;
   analysisExportService: AnalysisExportService;
+  sessionService: AnalysisSessionService;
+  branchService: AnalysisBranchService;
 }
 
 export function registerCodeAnalysisHandlers(deps: CodeAnalysisHandlerDeps): void {
@@ -166,6 +182,92 @@ export function registerCodeAnalysisHandlers(deps: CodeAnalysisHandlerDeps): voi
     IPC_CHANNELS.CODE_ANALYSIS_IMPORT_JSON,
     async (_event, payload: AireaderCodeAnalysisExport): Promise<IPCResult<CodeAnalysisDocumentData>> =>
       handle('codeAnalysis:importJson', () => deps.analysisExportService.importJson(payload)),
+  );
+
+  // ── Session handlers ────────────────────────────────────────────────────────
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_LIST_SESSIONS,
+    async (_event, payload: CodeAnalysisListSessionsPayload): Promise<IPCResult<AnalysisSession[]>> =>
+      handle('codeAnalysis:listSessions', () =>
+        deps.sessionService.listByProject(payload.projectId, payload.status),
+      ),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_LIST_RECENT_SESSIONS,
+    async (_event, payload?: { limit?: number }): Promise<IPCResult<AnalysisSession[]>> =>
+      handle('codeAnalysis:listRecentSessions', () =>
+        deps.sessionService.listRecent({ status: 'active', limit: payload?.limit }),
+      ),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_GET_SESSION,
+    async (_event, sessionId: string): Promise<IPCResult<AnalysisSessionDetail | null>> =>
+      handle('codeAnalysis:getSession', () => deps.sessionService.getDetail(sessionId)),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_RENAME_SESSION,
+    async (_event, payload: CodeAnalysisRenameSessionPayload): Promise<IPCResult<AnalysisSession>> =>
+      handle('codeAnalysis:renameSession', () =>
+        deps.sessionService.rename(payload.sessionId, payload.title),
+      ),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_ARCHIVE_SESSION,
+    async (_event, sessionId: string): Promise<IPCResult<AnalysisSession>> =>
+      handle('codeAnalysis:archiveSession', () => deps.sessionService.archive(sessionId)),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_RESTORE_SESSION,
+    async (_event, sessionId: string): Promise<IPCResult<AnalysisSession>> =>
+      handle('codeAnalysis:restoreSession', () => deps.sessionService.restore(sessionId)),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_DELETE_SESSION,
+    async (_event, payload: CodeAnalysisDeleteSessionPayload): Promise<IPCResult<{ cleanupPending: boolean }>> =>
+      handle('codeAnalysis:deleteSession', () =>
+        deps.sessionService.deletePermanently(payload.sessionId, payload.confirmed),
+      ),
+  );
+
+  // ── Turn and branch handlers ────────────────────────────────────────────────
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_RUN_TURN,
+    async (_event, payload: CodeAnalysisRunTurnPayload): Promise<IPCResult<CodeAnalysisRunTurnResult>> =>
+      handle('codeAnalysis:runTurn', () => deps.codeAnalysisService.runTurn(payload)),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_CHECKOUT_TURN,
+    async (_event, payload: CodeAnalysisCheckoutTurnPayload): Promise<IPCResult<void>> =>
+      handle('codeAnalysis:checkoutTurn', () => deps.branchService.checkout(payload)),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_LIST_BRANCHES,
+    async (_event, sessionId: string): Promise<IPCResult<AnalysisBranch[]>> =>
+      handle('codeAnalysis:listBranches', () => deps.branchService.list(sessionId)),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_SWITCH_BRANCH,
+    async (_event, payload: CodeAnalysisSwitchBranchPayload): Promise<IPCResult<void>> =>
+      handle('codeAnalysis:switchBranch', () => deps.branchService.switchBranch(payload)),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_RENAME_BRANCH,
+    async (_event, payload: CodeAnalysisRenameBranchPayload): Promise<IPCResult<AnalysisBranch>> =>
+      handle('codeAnalysis:renameBranch', () =>
+        deps.branchService.rename(payload.sessionId, payload.branchId, payload.name),
+      ),
   );
 }
 

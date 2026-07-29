@@ -20,8 +20,10 @@ import { AnnotationService } from '../services/annotation';
 import { SettingsService } from '../services/settings-service';
 import {
   AnalysisAnnotationService,
+  AnalysisBranchService,
   AnalysisExportService,
   AnalysisReplyEngine,
+  AnalysisSessionService,
   CodeAnalysisService,
 } from '../services/code-analysis';
 import { loadLLMConfig } from '../llm/config';
@@ -64,6 +66,8 @@ export function registerAllHandlers(db: DatabaseClient, localDocumentsPath: stri
     settings: settingsService,
   });
   const analysisExportService = new AnalysisExportService(db, localDocumentsPath);
+  const sessionService = new AnalysisSessionService(db);
+  const branchService = new AnalysisBranchService(db);
 
   // 注册各模块处理器
   registerSystemHandlers();
@@ -77,6 +81,8 @@ export function registerAllHandlers(db: DatabaseClient, localDocumentsPath: stri
     analysisAnnotationService,
     analysisReplyEngine,
     analysisExportService,
+    sessionService,
+    branchService,
   });
 
   log.info('All IPC handlers registered');

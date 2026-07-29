@@ -55,10 +55,26 @@ try {
     CODE_ANALYSIS_EXPORT_MARKDOWN: 'codeAnalysis:exportMarkdown',
     CODE_ANALYSIS_EXPORT_JSON: 'codeAnalysis:exportJson',
     CODE_ANALYSIS_IMPORT_JSON: 'codeAnalysis:importJson',
+    CODE_ANALYSIS_LIST_SESSIONS: 'codeAnalysis:listSessions',
+    CODE_ANALYSIS_LIST_RECENT_SESSIONS: 'codeAnalysis:listRecentSessions',
+    CODE_ANALYSIS_GET_SESSION: 'codeAnalysis:getSession',
+    CODE_ANALYSIS_RENAME_SESSION: 'codeAnalysis:renameSession',
+    CODE_ANALYSIS_ARCHIVE_SESSION: 'codeAnalysis:archiveSession',
+    CODE_ANALYSIS_RESTORE_SESSION: 'codeAnalysis:restoreSession',
+    CODE_ANALYSIS_DELETE_SESSION: 'codeAnalysis:deleteSession',
+    CODE_ANALYSIS_RUN_TURN: 'codeAnalysis:runTurn',
+    CODE_ANALYSIS_CHECKOUT_TURN: 'codeAnalysis:checkoutTurn',
+    CODE_ANALYSIS_LIST_BRANCHES: 'codeAnalysis:listBranches',
+    CODE_ANALYSIS_SWITCH_BRANCH: 'codeAnalysis:switchBranch',
+    CODE_ANALYSIS_RENAME_BRANCH: 'codeAnalysis:renameBranch',
   };
 }
 
 import type {
+  AnalysisBranch,
+  AnalysisSession,
+  AnalysisSessionDetail,
+  AnalysisTurn,
   IPCResult,
   WorkspaceCreatePayload,
   WorkspaceData,
@@ -76,10 +92,18 @@ import type {
   AnnotationData,
   CodeAnalysisAnnotationCreatePayload,
   CodeAnalysisAnnotationData,
+  CodeAnalysisCheckoutTurnPayload,
+  CodeAnalysisDeleteSessionPayload,
   CodeAnalysisDiscussionMessageData,
   CodeAnalysisDocumentData,
+  CodeAnalysisListSessionsPayload,
   CodeAnalysisProjectData,
+  CodeAnalysisRenameBranchPayload,
+  CodeAnalysisRenameSessionPayload,
   CodeAnalysisRunPayload,
+  CodeAnalysisRunTurnPayload,
+  CodeAnalysisRunTurnResult,
+  CodeAnalysisSwitchBranchPayload,
   CodeAnalysisToolTraceData,
   AppLanguage,
 } from '@ai-reader/shared';
@@ -210,6 +234,34 @@ const api = {
       invoke<unknown>(IPC_CHANNELS.CODE_ANALYSIS_EXPORT_JSON, documentId),
     importJson: (payload: unknown) =>
       invoke<CodeAnalysisDocumentData>(IPC_CHANNELS.CODE_ANALYSIS_IMPORT_JSON, payload),
+
+    // ── Session management ──────────────────────────────────────────────────
+    listSessions: (payload: CodeAnalysisListSessionsPayload) =>
+      invoke<AnalysisSession[]>(IPC_CHANNELS.CODE_ANALYSIS_LIST_SESSIONS, payload),
+    listRecentSessions: (limit?: number) =>
+      invoke<AnalysisSession[]>(IPC_CHANNELS.CODE_ANALYSIS_LIST_RECENT_SESSIONS, { limit }),
+    getSession: (sessionId: string) =>
+      invoke<AnalysisSessionDetail | null>(IPC_CHANNELS.CODE_ANALYSIS_GET_SESSION, sessionId),
+    renameSession: (payload: CodeAnalysisRenameSessionPayload) =>
+      invoke<AnalysisSession>(IPC_CHANNELS.CODE_ANALYSIS_RENAME_SESSION, payload),
+    archiveSession: (sessionId: string) =>
+      invoke<AnalysisSession>(IPC_CHANNELS.CODE_ANALYSIS_ARCHIVE_SESSION, sessionId),
+    restoreSession: (sessionId: string) =>
+      invoke<AnalysisSession>(IPC_CHANNELS.CODE_ANALYSIS_RESTORE_SESSION, sessionId),
+    deleteSession: (payload: CodeAnalysisDeleteSessionPayload) =>
+      invoke<{ cleanupPending: boolean }>(IPC_CHANNELS.CODE_ANALYSIS_DELETE_SESSION, payload),
+
+    // ── Turn and branch management ──────────────────────────────────────────
+    runTurn: (payload: CodeAnalysisRunTurnPayload) =>
+      invoke<CodeAnalysisRunTurnResult>(IPC_CHANNELS.CODE_ANALYSIS_RUN_TURN, payload),
+    checkoutTurn: (payload: CodeAnalysisCheckoutTurnPayload) =>
+      invoke<void>(IPC_CHANNELS.CODE_ANALYSIS_CHECKOUT_TURN, payload),
+    listBranches: (sessionId: string) =>
+      invoke<AnalysisBranch[]>(IPC_CHANNELS.CODE_ANALYSIS_LIST_BRANCHES, sessionId),
+    switchBranch: (payload: CodeAnalysisSwitchBranchPayload) =>
+      invoke<void>(IPC_CHANNELS.CODE_ANALYSIS_SWITCH_BRANCH, payload),
+    renameBranch: (payload: CodeAnalysisRenameBranchPayload) =>
+      invoke<AnalysisBranch>(IPC_CHANNELS.CODE_ANALYSIS_RENAME_BRANCH, payload),
   },
 };
 

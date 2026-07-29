@@ -2,7 +2,11 @@ import { mkdirSync, writeFileSync } from 'fs';
 import { basename, join } from 'path';
 import { randomUUID } from 'crypto';
 import type { LLMProvider } from '@ai-reader/core';
-import type { AppLanguage } from '@ai-reader/shared';
+import type {
+  AppLanguage,
+  CodeAnalysisRunTurnPayload,
+  CodeAnalysisRunTurnResult,
+} from '@ai-reader/shared';
 
 import type { DatabaseClient } from '../../db/client';
 import {
@@ -10,8 +14,10 @@ import {
   normalizeProjectRootPath,
 } from '../../db/code-analysis-migration';
 import type { SettingsService } from '../settings-service';
+import { AnalysisBranchService } from './branch-service';
 import { buildProjectContext } from './context-builder';
 import { buildAnalysisMessages, buildLocalDocumentMessages } from './prompt-builder';
+import { AnalysisSessionService } from './session-service';
 import { CodeAnalysisToolRegistry } from './tool-registry';
 import { runCodeAnalysisToolLoop } from './tool-loop';
 import type { AnalysisDocument, AnalysisToolTrace, CodeProject } from './types';
@@ -223,6 +229,228 @@ export class CodeAnalysisService {
       }
       throw error;
     }
+  }
+
+  async runTurn(payload: CodeAnalysisRunTurnPayload): Promise<CodeAnalysisRunTurnResult> {
+    const { sessionId, projectId, parentDocumentId, goal, forceFork } = payload;
+    const now = new Date().toISOString();
+    const turnId = randomUUID();
+
+    let sessionIdResolved: string;
+    let branchIdResolved: string;
+
+    if (!sessionId) {
+      // First send: create session + branch + turn atomically
+      const resolvedProjectId = projectId ?? null;
+      const title = goal.trim().split('\n')[0].substring(0, 60) || 'Untitled';
+      const sessionUuid = randomUUID();
+      const branchUuid = randomUUID();
+
+      this.deps.db.db.exec('BEGIN IMMEDIATE');
+      try {
+        // Create session
+        this.deps.db.db
+          .prepare(
+            `INSERT INTO analysis_sessions (id, project_id, title, status, created_at, updated_at)
+             VALUES (?, ?, ?, 'active', ?, ?)`,
+          )
+          .run(sessionUuid, resolvedProjectId, title, now, now);
+
+        // Create main branch
+        this.deps.db.db
+          .prepare(
+            `INSERT INTO analysis_branches (id, session_id, name, created_at, updated_at)
+             VALUES (?, ?, '主分支', ?, ?)`,
+          )
+          .run(branchUuid, sessionUuid, now, now);
+
+        // Create turn
+        this.deps.db.db
+          .prepare(
+            `INSERT INTO analysis_documents
+               (id, project_id, session_id, branch_id, parent_document_id, goal, content_markdown, status, tool_call_count, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, '', 'running', 0, ?, ?)`,
+          )
+          .run(turnId, resolvedProjectId, sessionUuid, branchUuid, null, goal, now, now);
+
+        // Update session active pointers and branch head
+        this.deps.db.db
+          .prepare(
+            'UPDATE analysis_sessions SET active_branch_id = ?, active_document_id = ?, updated_at = ? WHERE id = ?',
+          )
+          .run(branchUuid, turnId, now, sessionUuid);
+        this.deps.db.db
+          .prepare('UPDATE analysis_branches SET head_document_id = ?, updated_at = ? WHERE id = ?')
+          .run(turnId, now, branchUuid);
+
+        this.deps.db.db.exec('COMMIT');
+      } catch (error) {
+        this.deps.db.db.exec('ROLLBACK');
+        throw error;
+      }
+
+      sessionIdResolved = sessionUuid;
+      branchIdResolved = branchUuid;
+    } else {
+      // Continue or fork
+      sessionIdResolved = sessionId;
+
+      // Check if archived and get active document
+      const session = this.deps.db.db
+        .prepare('SELECT status, active_document_id FROM analysis_sessions WHERE id = ?')
+        .get(sessionId) as { status: string; active_document_id: string | null } | undefined;
+      if (!session) throw new Error(`Session not found: ${sessionId}`);
+      if (session.status === 'archived') throw new Error('Cannot run turn on archived session');
+
+      // Use active document as parent if not specified
+      const effectiveParentId = parentDocumentId ?? session.active_document_id ?? '';
+
+      const branchService = new AnalysisBranchService(this.deps.db);
+      const decision = await branchService.decideWrite(
+        sessionId,
+        effectiveParentId,
+        forceFork,
+      );
+
+      if (decision.action === 'append') {
+        branchIdResolved = decision.branchId;
+      } else {
+        // Fork: create new branch
+        const branchUuid = randomUUID();
+        const parentBranchId = decision.branchId;
+        this.deps.db.db
+          .prepare(
+            `INSERT INTO analysis_branches (id, session_id, name, parent_branch_id, forked_from_document_id, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            branchUuid,
+            sessionId,
+            `分支 ${Date.now()}`,
+            parentBranchId,
+            parentDocumentId ?? null,
+            now,
+            now,
+          );
+        branchIdResolved = branchUuid;
+      }
+
+      // Create turn
+      this.deps.db.db
+        .prepare(
+          `INSERT INTO analysis_documents
+             (id, project_id, session_id, branch_id, parent_document_id, goal, content_markdown, status, tool_call_count, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, '', 'running', 0, ?, ?)`,
+        )
+        .run(
+          turnId,
+          projectId ?? null,
+          sessionIdResolved,
+          branchIdResolved,
+          effectiveParentId || null,
+          goal,
+          now,
+          now,
+        );
+
+      // Update branch head and session active pointers
+      this.deps.db.db
+        .prepare('UPDATE analysis_branches SET head_document_id = ?, updated_at = ? WHERE id = ?')
+        .run(turnId, now, branchIdResolved);
+      this.deps.db.db
+        .prepare(
+          'UPDATE analysis_sessions SET active_branch_id = ?, active_document_id = ?, updated_at = ? WHERE id = ?',
+        )
+        .run(branchIdResolved, turnId, now, sessionIdResolved);
+    }
+
+    // Run analysis - get project from session if not provided
+    const effectiveProjectId = projectId ?? (this.deps.db.db
+      .prepare('SELECT project_id FROM analysis_sessions WHERE id = ?')
+      .get(sessionIdResolved) as { project_id: string | null } | undefined)?.project_id ?? null;
+    const project = effectiveProjectId ? await this.getProject(effectiveProjectId) : null;
+    let outputLanguage: AppLanguage = 'zh-CN';
+    try {
+      outputLanguage = this.deps.settings?.getLanguage() ?? 'zh-CN';
+      const result = project
+        ? await this.runProjectAnalysis(project, goal, outputLanguage)
+        : await this.runLocalDocument(goal, outputLanguage);
+      const localDocumentsPath = this.deps.localDocumentsPath?.trim();
+      if (!project && !localDocumentsPath) {
+        throw new Error('Local documents path is not configured');
+      }
+
+      // Persist traces
+      const traceInsert = this.deps.db.db.prepare(`
+        INSERT INTO analysis_tool_traces
+          (id, analysis_document_id, step_index, tool_name, tool_args_json, result_summary, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const trace of result.traces) {
+        traceInsert.run(
+          randomUUID(),
+          turnId,
+          trace.stepIndex,
+          trace.toolName,
+          JSON.stringify(trace.toolArgs),
+          trace.resultSummary,
+          new Date().toISOString(),
+        );
+      }
+
+      const doneAt = new Date().toISOString();
+      this.deps.db.db
+        .prepare(
+          `UPDATE analysis_documents
+           SET content_markdown = ?, status = 'completed', model_id = ?, tool_call_count = ?, updated_at = ?
+           WHERE id = ?`,
+        )
+        .run(result.markdown, result.modelId, result.traces.length, doneAt, turnId);
+
+      if (project) {
+        this.deps.db.db
+          .prepare('UPDATE code_projects SET updated_at = ? WHERE id = ?')
+          .run(doneAt, project.id);
+      } else {
+        const outputDirectory = join(localDocumentsPath!, turnId);
+        mkdirSync(outputDirectory, { recursive: true });
+        writeFileSync(join(outputDirectory, 'document.md'), result.markdown, 'utf8');
+      }
+    } catch (error) {
+      const failedAt = new Date().toISOString();
+      const errorMessage = error instanceof Error ? error.message : 'Unknown analysis error';
+      const failureMarkdown =
+        outputLanguage === 'zh-CN'
+          ? `# 分析失败\n\n${errorMessage}`
+          : `# Analysis Failed\n\n${errorMessage}`;
+      this.deps.db.db
+        .prepare(
+          `UPDATE analysis_documents
+           SET content_markdown = ?, status = 'failed', updated_at = ?
+           WHERE id = ?`,
+        )
+        .run(failureMarkdown, failedAt, turnId);
+      if (project) {
+        this.deps.db.db
+          .prepare('UPDATE code_projects SET updated_at = ? WHERE id = ?')
+          .run(failedAt, project.id);
+      }
+      throw error;
+    }
+
+    // Build result
+    const sessionService = new AnalysisSessionService(this.deps.db);
+    const detail = await sessionService.getDetail(sessionIdResolved);
+    if (!detail) throw new Error('Session not found after turn creation');
+
+    const turn = detail.turns.find((t) => t.id === turnId);
+    if (!turn) throw new Error('Turn not found after creation');
+
+    return {
+      session: detail.session,
+      branch: detail.branches.find((b) => b.id === branchIdResolved) ?? detail.branches[0],
+      turn,
+    };
   }
 
   private async runProjectAnalysis(
