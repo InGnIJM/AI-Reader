@@ -1,5 +1,6 @@
 export * from './types';
 export * from './service';
+export * from './session-service';
 export * from './tool-registry';
 export * from './tool-loop';
 export * from './annotation-service';
