@@ -18,7 +18,7 @@ import type {
   CodeAnalysisRunTurnResult,
   CodeAnalysisSourceAnnotationCreatePayload,
   CodeAnalysisSwitchBranchPayload,
-} from '../types';
+} from '../../index';
 
 const session: AnalysisSession = {
   id: 'session-1',
