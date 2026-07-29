@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  check,
   index,
   integer,
   real,
@@ -186,7 +187,9 @@ export const analysisSessions = sqliteTable(
       onDelete: 'cascade',
     }),
     title: text('title').notNull(),
-    status: text('status').notNull().default('active'),
+    status: text('status', { enum: ['active', 'archived'] })
+      .notNull()
+      .default('active'),
     activeBranchId: text('active_branch_id').references(
       (): AnySQLiteColumn => analysisBranches.id,
       { onDelete: 'set null' },
@@ -200,6 +203,10 @@ export const analysisSessions = sqliteTable(
     updatedAt: text('updated_at').notNull(),
   },
   (table) => ({
+    statusCheck: check(
+      'analysis_sessions_status_check',
+      sql`${table.status} IN ('active', 'archived')`,
+    ),
     projectStatusUpdatedIndex: index(
       'idx_analysis_sessions_project_status_updated',
     ).on(table.projectId, table.status, sql`${table.updatedAt} DESC`),

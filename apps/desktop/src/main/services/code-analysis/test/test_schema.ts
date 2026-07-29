@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { getTableConfig, type SQLiteTable } from 'drizzle-orm/sqlite-core';
+import { SQL } from 'drizzle-orm';
+import {
+  getTableConfig,
+  SQLiteSyncDialect,
+  type SQLiteTable,
+} from 'drizzle-orm/sqlite-core';
 
 import * as schema from '../../../db/schema';
 import { createDatabase, type DatabaseClient } from '../../../db/client';
@@ -139,6 +144,8 @@ const ALL_TABLE_EXPORTS = [
   ...INDEXED_TABLE_EXPORTS,
 ] as const;
 
+const sqliteDialect = new SQLiteSyncDialect();
+
 function exportedTable(exportName: string): SQLiteTable {
   const table = (schema as Record<string, unknown>)[exportName];
   expect(table, `missing Drizzle export ${exportName}`).toBeDefined();
@@ -161,6 +168,35 @@ function parseSqliteDefault(defaultValue: string): string | number {
 
   const numericValue = Number(defaultValue);
   return Number.isNaN(numericValue) ? defaultValue : numericValue;
+}
+
+function drizzleIndexColumn(column: unknown) {
+  if (column instanceof SQL) {
+    const rendered = sqliteDialect.sqlToQuery(column, 'indexes').sql;
+    const quotedNames = [...rendered.matchAll(/"([^"]+)"/g)].map(
+      (match) => match[1],
+    );
+
+    return {
+      name: quotedNames.at(-1),
+      descending: /\bDESC\b/i.test(rendered),
+    };
+  }
+
+  return {
+    name: (column as { name: string }).name,
+    descending: false,
+  };
+}
+
+function statusCheckValues(checkSql: string): string[] {
+  const valuesSql = checkSql.match(
+    /(?:["`]?analysis_sessions["`]?\.)?["`]?status["`]?\s+IN\s*\(([^)]+)\)/i,
+  )?.[1];
+
+  return valuesSql
+    ? [...valuesSql.matchAll(/'([^']+)'/g)].map((match) => match[1])
+    : [];
 }
 
 describe('code-analysis database schema', () => {
@@ -238,6 +274,43 @@ describe('code-analysis database schema', () => {
     ).toEqual([{ name: 'relative_path' }]);
   });
 
+  it('declares analysis session status as the SQL enum domain', () => {
+    expect(schema.analysisSessions.status.enumValues).toEqual([
+      'active',
+      'archived',
+    ]);
+  });
+
+  it('declares the SQL status check and rejects invalid session status', () => {
+    const checks = getTableConfig(schema.analysisSessions).checks;
+    const sqliteTable = db.db
+      .prepare(
+        `SELECT sql
+         FROM sqlite_master
+         WHERE type = 'table' AND name = 'analysis_sessions'`,
+      )
+      .get() as { sql: string };
+
+    expect(checks).toHaveLength(1);
+    const drizzleCheckValues = statusCheckValues(
+      sqliteDialect.sqlToQuery(checks[0].value).sql,
+    );
+    const sqliteCheckValues = statusCheckValues(sqliteTable.sql);
+    expect(drizzleCheckValues).toEqual(sqliteCheckValues);
+    expect(sqliteCheckValues).toEqual(['active', 'archived']);
+
+    const now = new Date().toISOString();
+    expect(() =>
+      db.db
+        .prepare(
+          `INSERT INTO analysis_sessions
+             (id, title, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run('session-invalid', 'Invalid', 'deleted', now, now),
+    ).toThrow(/CHECK constraint failed/);
+  });
+
   it('keeps Drizzle foreign keys and cascade actions aligned with fresh SQL', () => {
     for (const expected of TRANSITIONAL_TABLES) {
       const drizzleForeignKeys = getTableConfig(exportedTable(expected.exportName))
@@ -286,23 +359,54 @@ describe('code-analysis database schema', () => {
     }
   });
 
-  it('declares every transitional analysis index created by fresh SQL', () => {
-    const drizzleIndexes = INDEXED_TABLE_EXPORTS.flatMap((exportName) =>
-      getTableConfig(exportedTable(exportName)).indexes.map(
-        (tableIndex) => tableIndex.config.name,
-      ),
-    ).sort();
-    const sqliteIndexes = (
+  it('matches transitional SQL index columns, order, uniqueness, and direction', () => {
+    const drizzleIndexes = INDEXED_TABLE_EXPORTS.flatMap((exportName) => {
+      const tableConfig = getTableConfig(exportedTable(exportName));
+      return tableConfig.indexes.map((tableIndex) => ({
+        name: tableIndex.config.name,
+        table: tableConfig.name,
+        unique: tableIndex.config.unique,
+        columns: tableIndex.config.columns.map(drizzleIndexColumn),
+      }));
+    }).sort((left, right) => left.name.localeCompare(right.name));
+    const sqliteIndexRows = (
       db.db
         .prepare(
-          `SELECT name
+          `SELECT name, tbl_name AS tableName
            FROM sqlite_master
            WHERE type = 'index'
              AND (name LIKE 'idx_analysis_%' OR name = 'ux_code_projects_root_path_hash')
            ORDER BY name`,
         )
-        .all() as Array<{ name: string }>
-    ).map(({ name }) => name);
+        .all() as Array<{ name: string; tableName: string }>
+    );
+    const sqliteIndexes = sqliteIndexRows.map(({ name, tableName }) => {
+      const indexListRow = db.db
+        .prepare(
+          `SELECT "unique" AS isUnique
+           FROM pragma_index_list(?)
+           WHERE name = ?`,
+        )
+        .get(tableName, name) as { isUnique: 0 | 1 };
+      const columns = db.db
+        .prepare(
+          `SELECT name, "desc" AS descending
+           FROM pragma_index_xinfo(?)
+           WHERE key = 1
+           ORDER BY seqno`,
+        )
+        .all(name) as Array<{ name: string; descending: 0 | 1 }>;
+
+      return {
+        name,
+        table: tableName,
+        unique: indexListRow.isUnique === 1,
+        columns: columns.map((column) => ({
+          name: column.name,
+          descending: column.descending === 1,
+        })),
+      };
+    });
 
     expect(drizzleIndexes).toEqual(sqliteIndexes);
   });
@@ -353,7 +457,13 @@ describe('code-analysis database schema', () => {
       INSERT INTO analysis_file_cleanup_queue
         (id, document_id, relative_path, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?)
-    `).run('cleanup-direct', 'turn-direct', 'analysis/turn-direct.md', now, now);
+    `).run(
+      'cleanup-direct',
+      'turn-direct',
+      'generated-documents/turn-direct.md',
+      now,
+      now,
+    );
 
     db.db.prepare('DELETE FROM analysis_documents WHERE id = ?').run('turn-direct');
 
@@ -372,7 +482,13 @@ describe('code-analysis database schema', () => {
       INSERT INTO analysis_file_cleanup_queue
         (id, document_id, relative_path, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?)
-    `).run('cleanup-session', 'turn-session', 'analysis/turn-session.md', now, now);
+    `).run(
+      'cleanup-session',
+      'turn-session',
+      'generated-documents/turn-session.md',
+      now,
+      now,
+    );
 
     db.db.prepare('DELETE FROM analysis_sessions WHERE id = ?').run('session-1');
 
@@ -394,6 +510,7 @@ describe('code-analysis database schema', () => {
       { id: 'cleanup-direct', documentId: 'turn-direct' },
       { id: 'cleanup-session', documentId: 'turn-session' },
     ]);
+    expect(db.db.pragma('foreign_key_check')).toEqual([]);
   });
 
   it('creates code analysis tables and cascades document children', () => {
