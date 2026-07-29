@@ -8,8 +8,10 @@
 
 .projectSidebar {
   display: flex;
+  min-height: 0;
+  flex: 1;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 
 .projectSidebar button,
@@ -22,6 +24,75 @@
   background: #1e293b;
   color: #f8fafc;
   cursor: pointer;
+}
+
+.projectSidebar .primaryAction {
+  border-color: #2563eb;
+  background: #2563eb;
+}
+
+.sidebarSection {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebarSection h2 {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.conversationSection {
+  flex: 1;
+}
+
+.sidebarList {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.projectSidebar .sidebarItem {
+  min-height: 38px;
+  overflow: hidden;
+  border-color: transparent;
+  background: transparent;
+  padding: 8px 10px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projectSidebar .sidebarItem:hover {
+  background: #172033;
+}
+
+.projectSidebar .sidebarItem[data-active='true'] {
+  border-color: #334155;
+  background: #1e293b;
+}
+
+.languageControl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.languageControl select {
+  min-height: 34px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #111827;
+  color: #f8fafc;
+  padding: 0 8px;
 }
 
 .projectSidebar button:disabled,
@@ -60,6 +131,27 @@
 .annotationItem blockquote {
   margin: 0;
   color: #facc15;
+}
+
+.annotationReply {
+  --md-sys-color-primary: #93c5fd;
+  --md-sys-color-on-surface: #e2e8f0;
+  --md-sys-color-on-surface-variant: #cbd5e1;
+  --md-sys-color-surface-container-high: #1e293b;
+  --md-sys-color-inverse-surface: #020617;
+  --md-sys-color-inverse-on-surface: #e2e8f0;
+  --md-sys-color-outline-variant: #334155;
+
+  padding-top: 10px;
+  border-top: 1px solid #334155;
+}
+
+.annotationReply > div > :first-child {
+  margin-top: 0;
+}
+
+.annotationReply > div > :last-child {
+  margin-bottom: 0;
 }
 
 .emptyDocument {
