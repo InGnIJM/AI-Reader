@@ -27,8 +27,16 @@
 }
 
 .projectSidebar .primaryAction {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   border-color: #2563eb;
   background: #2563eb;
+}
+
+.primaryAction .material-symbols-rounded {
+  font-size: 19px;
 }
 
 .sidebarSection {
@@ -45,8 +53,9 @@
   font-weight: 700;
 }
 
-.conversationSection {
+.projectTreeSection {
   flex: 1;
+  overflow: hidden;
 }
 
 .sidebarList {
@@ -57,22 +66,73 @@
   overflow-y: auto;
 }
 
-.projectSidebar .sidebarItem {
-  min-height: 38px;
-  overflow: hidden;
+.projectTree {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.folderGroup {
+  min-width: 0;
+}
+
+.projectSidebar .folderRow,
+.projectSidebar .conversationItem {
+  display: grid;
+  width: 100%;
+  align-items: center;
   border-color: transparent;
   background: transparent;
-  padding: 8px 10px;
   text-align: left;
+}
+
+.projectSidebar .folderRow {
+  grid-template-columns: 20px 22px minmax(0, 1fr) auto;
+  min-height: 40px;
+  gap: 4px;
+  padding: 7px 8px;
+  font-weight: 500;
+}
+
+.projectSidebar .conversationItem {
+  grid-template-columns: 20px minmax(0, 1fr);
+  min-height: 38px;
+  gap: 7px;
+  padding: 7px 10px;
+}
+
+.folderRow > span:nth-child(3),
+.conversationItem > span:last-child {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.projectSidebar .sidebarItem:hover {
+.folderRow .material-symbols-rounded,
+.conversationItem .material-symbols-rounded {
+  color: #94a3b8;
+  font-size: 19px;
+}
+
+.folderCount {
+  min-width: 20px;
+  color: #64748b;
+  font-size: 11px;
+  text-align: right;
+}
+
+.folderChildren {
+  margin-left: 22px;
+  padding-left: 8px;
+  border-left: 1px solid #334155;
+}
+
+.projectSidebar .folderRow:hover,
+.projectSidebar .conversationItem:hover {
   background: #172033;
 }
 
-.projectSidebar .sidebarItem[data-active='true'] {
+.projectSidebar .folderRow[data-active='true'],
+.projectSidebar .conversationItem[data-active='true'] {
   border-color: #334155;
   background: #1e293b;
 }
