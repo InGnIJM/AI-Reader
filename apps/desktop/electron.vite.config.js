@@ -3,14 +3,36 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 export default defineConfig({
     main: {
-        plugins: [externalizeDepsPlugin()],
+        resolve: {
+            extensions: ['.ts', '.tsx', '.mjs', '.js', '.mts', '.jsx', '.json'],
+            alias: {
+                '@ai-reader/shared': resolve(__dirname, '../../packages/shared/src'),
+                '@ai-reader/core': resolve(__dirname, '../../packages/core/src'),
+            },
+        },
+        plugins: [
+            externalizeDepsPlugin({
+                exclude: ['@ai-reader/shared', '@ai-reader/core'],
+            }),
+        ],
         build: {
             outDir: 'dist/main',
             rollupOptions: { input: { index: resolve(__dirname, 'src/main/index.ts') } },
         },
     },
     preload: {
-        plugins: [externalizeDepsPlugin()],
+        resolve: {
+            extensions: ['.ts', '.tsx', '.mjs', '.js', '.mts', '.jsx', '.json'],
+            alias: {
+                '@ai-reader/shared': resolve(__dirname, '../../packages/shared/src'),
+                '@ai-reader/core': resolve(__dirname, '../../packages/core/src'),
+            },
+        },
+        plugins: [
+            externalizeDepsPlugin({
+                exclude: ['@ai-reader/shared', '@ai-reader/core'],
+            }),
+        ],
         build: {
             outDir: 'dist/preload',
             rollupOptions: { input: { index: resolve(__dirname, 'src/preload/index.ts') } },
