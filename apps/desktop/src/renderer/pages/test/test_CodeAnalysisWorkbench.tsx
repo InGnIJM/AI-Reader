@@ -15,6 +15,7 @@ describe('CodeAnalysisWorkbench', () => {
         listProjects: vi.fn(async () => [
           { id: 'project-1', name: 'Fixture', rootPathHash: 'hash' },
         ]),
+        listRecentDocuments: vi.fn(async () => []),
         listDocuments: vi.fn(async () => []),
         run: vi.fn(async () => ({
           id: 'doc-1',
@@ -65,6 +66,94 @@ describe('CodeAnalysisWorkbench', () => {
     expect(window.api.codeAnalysis.exportJson).toHaveBeenCalledWith('doc-1');
   });
 
+  it('shows global recent conversations and collapsible project folders', async () => {
+    (window.api.codeAnalysis.listProjects as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 'project-1', name: 'First project', rootPathHash: 'first' },
+      { id: 'project-2', name: 'Second project', rootPathHash: 'second' },
+    ]);
+    (window.api.codeAnalysis.listRecentDocuments as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        id: 'doc-second',
+        projectId: 'project-2',
+        goal: 'Recent from second project',
+        contentMarkdown: '# Recent',
+        status: 'completed',
+        toolCallCount: 0,
+        createdAt: '2026-07-29T02:00:00.000Z',
+        updatedAt: '2026-07-29T02:00:00.000Z',
+      },
+      {
+        id: 'doc-local',
+        projectId: null,
+        goal: 'Recent local document',
+        contentMarkdown: '# Local',
+        status: 'completed',
+        toolCallCount: 0,
+        createdAt: '2026-07-29T01:00:00.000Z',
+        updatedAt: '2026-07-29T01:00:00.000Z',
+      },
+    ]);
+    (window.api.codeAnalysis.listDocuments as ReturnType<typeof vi.fn>).mockImplementation(
+      async (projectId: string | null) =>
+        projectId === 'project-1'
+          ? [
+              {
+                id: 'doc-first',
+                projectId: 'project-1',
+                goal: 'Conversation inside first project',
+                contentMarkdown: '# First',
+                status: 'completed',
+                toolCallCount: 0,
+                createdAt: '2026-07-29T00:00:00.000Z',
+                updatedAt: '2026-07-29T00:00:00.000Z',
+              },
+            ]
+          : [],
+    );
+
+    const user = userEvent.setup();
+    render(<CodeAnalysisWorkbench />);
+
+    expect(await screen.findByRole('button', { name: 'Recent from second project' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Recent local document' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Conversation inside first project' }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^first project$/i }));
+
+    expect(
+      await screen.findByRole('button', { name: 'Conversation inside first project' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^first project$/i })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+  });
+
+  it('creates a no-project document from the local folder without directory tools', async () => {
+    (window.api.codeAnalysis.run as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'doc-local',
+      projectId: null,
+      goal: 'Write a design note',
+      contentMarkdown: '# Design note',
+      status: 'completed',
+      toolCallCount: 0,
+      createdAt: '2026-07-29T00:00:00.000Z',
+      updatedAt: '2026-07-29T00:00:00.000Z',
+    });
+
+    const user = userEvent.setup();
+    render(<CodeAnalysisWorkbench />);
+    await user.type(await screen.findByLabelText(/analysis goal/i), 'Write a design note');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() =>
+      expect(window.api.codeAnalysis.run).toHaveBeenCalledWith(null, 'Write a design note'),
+    );
+    expect(await screen.findByText('Design note')).toBeInTheDocument();
+  });
+
   it('shows the submitted goal in the conversation before analysis finishes', async () => {
     let resolveRun!: (value: {
       id: string;
@@ -90,7 +179,7 @@ describe('CodeAnalysisWorkbench', () => {
     const userMessage = screen.getByRole('article', { name: /you/i });
     expect(userMessage).toHaveTextContent('Explain the startup flow');
     expect(prompt).toHaveValue('');
-    expect(screen.getByText('Analyzing project...')).toBeInTheDocument();
+    expect(screen.getByText('Generating document...')).toBeInTheDocument();
 
     resolveRun({
       id: 'doc-2',
@@ -137,7 +226,7 @@ describe('CodeAnalysisWorkbench', () => {
     await waitFor(() => expect(screen.getByText('Second answer')).toBeInTheDocument());
 
     expect(screen.queryByText('First answer')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'First analysis' }));
+    await user.click(screen.getAllByRole('button', { name: 'First analysis' })[0]);
 
     await waitFor(() =>
       expect(window.api.codeAnalysis.listAnnotations).toHaveBeenLastCalledWith('doc-first'),
@@ -416,6 +505,37 @@ describe('CodeAnalysisWorkbench', () => {
 
     await waitFor(() =>
       expect(screen.queryByRole('button', { name: 'Stale conversation' })).not.toBeInTheDocument(),
+    );
+  });
+
+  it('does not let a slow directory import overwrite a later project selection', async () => {
+    let resolveCreateProject!: (value: any) => void;
+    const pendingCreateProject = new Promise<any>((resolve) => {
+      resolveCreateProject = resolve;
+    });
+    (window.api.codeAnalysis.listProjects as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 'project-existing', name: 'Existing project', rootPathHash: 'existing' },
+    ]);
+    (window.api.codeAnalysis.createProject as ReturnType<typeof vi.fn>).mockReturnValue(
+      pendingCreateProject,
+    );
+
+    const user = userEvent.setup();
+    render(<CodeAnalysisWorkbench />);
+    const existingProject = await screen.findByRole('button', { name: 'Existing project' });
+    await user.click(screen.getByRole('button', { name: /select directory/i }));
+    await user.click(existingProject);
+
+    resolveCreateProject({
+      id: 'project-imported',
+      name: 'Imported project',
+      rootPathHash: 'imported',
+    });
+
+    await waitFor(() => expect(existingProject).toHaveAttribute('data-active', 'true'));
+    expect(screen.getByRole('button', { name: 'Imported project' })).toHaveAttribute(
+      'data-active',
+      'false',
     );
   });
 

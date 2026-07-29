@@ -18,7 +18,7 @@ import { codeAnalysisText } from './code-analysis-i18n';
 import type { AppLanguage } from './code-analysis-i18n';
 import styles from './CodeAnalysisWorkbench.module.css';
 
-type CodeProject = Pick<CodeAnalysisProjectData, 'id' | 'name'>;
+type CodeProject = Pick<CodeAnalysisProjectData, 'id' | 'name' | 'conversationCount'>;
 type AnalysisDocument = CodeAnalysisDocumentData;
 
 interface ConversationMessage {
@@ -32,7 +32,12 @@ interface ConversationMessage {
 export default function CodeAnalysisWorkbench() {
   const [language, setLanguage] = useState<AppLanguage>('en-US');
   const [projects, setProjects] = useState<CodeProject[]>([]);
-  const [documents, setDocuments] = useState<AnalysisDocument[]>([]);
+  const [recentDocuments, setRecentDocuments] = useState<AnalysisDocument[]>([]);
+  const [localDocuments, setLocalDocuments] = useState<AnalysisDocument[]>([]);
+  const [documentsByProject, setDocumentsByProject] = useState<
+    Record<string, AnalysisDocument[]>
+  >({});
+  const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(new Set());
   const [project, setProject] = useState<CodeProject | null>(null);
   const [document, setDocument] = useState<AnalysisDocument | null>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
@@ -51,11 +56,15 @@ export default function CodeAnalysisWorkbench() {
     let active = true;
     void Promise.all([
       window.api.codeAnalysis.listProjects(),
+      window.api.codeAnalysis.listRecentDocuments(),
+      window.api.codeAnalysis.listDocuments(null),
       window.api.settings.getLanguage(),
     ])
-      .then(([savedProjects, savedLanguage]) => {
+      .then(([savedProjects, savedRecentDocuments, savedLocalDocuments, savedLanguage]) => {
         if (!active) return;
         setProjects(savedProjects);
+        setRecentDocuments(savedRecentDocuments);
+        setLocalDocuments(savedLocalDocuments);
         setLanguage(savedLanguage);
       })
       .catch((error) => {
@@ -91,11 +100,23 @@ export default function CodeAnalysisWorkbench() {
       const requestId = viewRequestSequence.current;
       setProject(nextProject);
       clearDocumentState();
-      setDocuments([]);
+      const isExpanded = expandedProjectIds.has(nextProject.id);
+      setExpandedProjectIds((current) => {
+        const next = new Set(current);
+        if (next.has(nextProject.id)) next.delete(nextProject.id);
+        else next.add(nextProject.id);
+        return next;
+      });
+      if (isExpanded) return;
       const nextDocuments = await window.api.codeAnalysis.listDocuments(nextProject.id);
-      if (requestId === viewRequestSequence.current) setDocuments(nextDocuments);
+      if (requestId === viewRequestSequence.current) {
+        setDocumentsByProject((current) => ({
+          ...current,
+          [nextProject.id]: nextDocuments,
+        }));
+      }
     },
-    [clearDocumentState],
+    [clearDocumentState, expandedProjectIds],
   );
 
   const selectDocument = useCallback(
@@ -133,24 +154,37 @@ export default function CodeAnalysisWorkbench() {
   );
 
   const selectDirectory = useCallback(async () => {
+    viewRequestSequence.current += 1;
+    const requestId = viewRequestSequence.current;
     const result = await window.api.dialog.openDirectory();
     if (result.canceled || !result.filePaths[0]) return;
+    if (requestId !== viewRequestSequence.current) return;
 
     const created = await window.api.codeAnalysis.createProject(result.filePaths[0]);
-    viewRequestSequence.current += 1;
-    const nextProject = { id: created.id, name: created.name };
+    const nextProject = {
+      id: created.id,
+      name: created.name,
+      conversationCount: created.conversationCount,
+    };
     setProjects((current) => [
       nextProject,
       ...current.filter((item) => item.id !== nextProject.id),
     ]);
+    if (requestId !== viewRequestSequence.current) return;
     setProject(nextProject);
-    setDocuments([]);
     clearDocumentState();
+    setExpandedProjectIds((current) => new Set(current).add(nextProject.id));
+    const nextDocuments = await window.api.codeAnalysis.listDocuments(nextProject.id);
+    if (requestId !== viewRequestSequence.current) return;
+    setDocumentsByProject((current) => ({
+      ...current,
+      [nextProject.id]: nextDocuments,
+    }));
     setStatus(text.directorySelected);
   }, [clearDocumentState, text.directorySelected]);
 
   const runAnalysis = useCallback(async () => {
-    if (!project || !goal.trim()) return;
+    if (!goal.trim()) return;
 
     const submittedGoal = goal.trim();
     messageSequence.current += 1;
@@ -180,13 +214,36 @@ export default function CodeAnalysisWorkbench() {
     setIsRunning(true);
     setStatus(text.runningAnalysis);
     try {
-      const nextDocument = await window.api.codeAnalysis.run(project.id, submittedGoal);
+      const nextDocument = await window.api.codeAnalysis.run(project?.id ?? null, submittedGoal);
       if (requestId !== viewRequestSequence.current) return;
       setDocument(nextDocument);
-      setDocuments((current) => [
+      setRecentDocuments((current) => [
         nextDocument,
         ...current.filter((item) => item.id !== nextDocument.id),
-      ]);
+      ].slice(0, 20));
+      if (nextDocument.projectId) {
+        setProjects((current) =>
+          current.map((item) =>
+            item.id === nextDocument.projectId
+              ? { ...item, conversationCount: (item.conversationCount ?? 0) + 1 }
+              : item,
+          ),
+        );
+        setDocumentsByProject((current) => ({
+          ...current,
+          [nextDocument.projectId as string]: [
+            nextDocument,
+            ...(current[nextDocument.projectId as string] ?? []).filter(
+              (item) => item.id !== nextDocument.id,
+            ),
+          ],
+        }));
+      } else {
+        setLocalDocuments((current) => [
+          nextDocument,
+          ...current.filter((item) => item.id !== nextDocument.id),
+        ]);
+      }
       setMessages((current) =>
         current.map((message) =>
           message.id === assistantMessageId
@@ -230,11 +287,9 @@ export default function CodeAnalysisWorkbench() {
   const selectAnalysisText = useCallback(async (message: ConversationMessage, text: string) => {
     if (!message.documentId) return;
 
-    const matchingDocument = documents.find((item) => item.id === message.documentId);
-    if (!matchingDocument) return;
+    if (!document || document.id !== message.documentId) return;
     viewRequestSequence.current += 1;
     const requestId = viewRequestSequence.current;
-    setDocument(matchingDocument);
     setSelectedText(text);
     setStatus(codeAnalysisText[language].textSelected);
     const [nextTraces, nextAnnotations] = await Promise.all([
@@ -245,7 +300,7 @@ export default function CodeAnalysisWorkbench() {
       setTraces(nextTraces);
       setAnnotations(nextAnnotations);
     }
-  }, [documents, language, loadAnnotations]);
+  }, [document, language, loadAnnotations]);
 
   const createAnnotation = useCallback(async () => {
     if (!document || !selectedText || !comment.trim()) return;
@@ -323,18 +378,30 @@ export default function CodeAnalysisWorkbench() {
       <section className={styles.leftPanel}>
         <ProjectSidebar
           projects={projects}
-          documents={documents}
+          recentDocuments={recentDocuments}
+          localDocuments={localDocuments}
+          documentsByProject={documentsByProject}
+          expandedProjectIds={expandedProjectIds}
           selectedProjectId={project?.id}
           selectedDocumentId={document?.id}
           language={language}
           labels={text}
           onSelectDirectory={selectDirectory}
-          onSelectProject={(item) => {
+          onToggleProject={(item) => {
             void selectProject(item);
           }}
           onSelectDocument={(item) => {
-            const matchingDocument = documents.find((candidate) => candidate.id === item.id);
-            if (matchingDocument) void selectDocument(matchingDocument);
+            const matchingProject =
+              item.projectId === null
+                ? null
+                : projects.find((candidate) => candidate.id === item.projectId) ?? null;
+            setProject(matchingProject);
+            void selectDocument(item as AnalysisDocument);
+          }}
+          onSelectLocal={() => {
+            viewRequestSequence.current += 1;
+            setProject(null);
+            clearDocumentState();
           }}
           onLanguageChange={(nextLanguage) => {
             void changeLanguage(nextLanguage);
@@ -434,7 +501,7 @@ export default function CodeAnalysisWorkbench() {
       <div className={styles.promptBar}>
         <AnalysisPromptBox
           value={goal}
-          disabled={!project || isRunning}
+          disabled={isRunning}
           labels={{
             ariaLabel: text.analysisGoal,
             placeholder: text.promptPlaceholder,
