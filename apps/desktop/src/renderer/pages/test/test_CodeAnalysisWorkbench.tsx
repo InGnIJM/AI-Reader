@@ -1501,6 +1501,179 @@ describe('CodeAnalysisWorkbench', () => {
     expect(await screen.findByText('Startup')).toBeInTheDocument();
   });
 
+  it('highlights annotated text and opens the annotation when its mark is clicked', async () => {
+    const mockSession = {
+      id: 'session-ann',
+      title: 'Ann Session',
+      status: 'active',
+      projectId: 'project-1',
+      activeBranchId: 'branch-1',
+      activeDocumentId: 'turn-1',
+      archivedAt: null,
+      createdAt: '2026-07-29T10:00:00.000Z',
+      updatedAt: '2026-07-29T10:01:00.000Z',
+    };
+    const mockBranches = [
+      {
+        id: 'branch-1',
+        sessionId: 'session-ann',
+        name: 'main',
+        parentBranchId: null,
+        forkedFromDocumentId: null,
+        headDocumentId: 'turn-1',
+        createdAt: '2026-07-29T10:00:00.000Z',
+        updatedAt: '2026-07-29T10:01:00.000Z',
+      },
+    ];
+    const mockTurns = [
+      {
+        id: 'turn-1',
+        sessionId: 'session-ann',
+        branchId: 'branch-1',
+        parentDocumentId: null,
+        goal: 'Explain startup',
+        contentMarkdown: '# Startup\n\nUses IPC.',
+        status: 'completed',
+        toolCallCount: 1,
+        createdAt: '2026-07-29T10:00:00.000Z',
+        updatedAt: '2026-07-29T10:01:00.000Z',
+      },
+    ];
+
+    (window.api.codeAnalysis.listRecentSessions as ReturnType<typeof vi.fn>).mockResolvedValue([
+      mockSession,
+    ]);
+    (window.api.codeAnalysis.getSession as ReturnType<typeof vi.fn>).mockResolvedValue({
+      session: mockSession,
+      branches: mockBranches,
+      turns: mockTurns,
+    });
+    (window.api.codeAnalysis.listAnnotations as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        id: 'ann-1',
+        analysisDocumentId: 'turn-1',
+        anchorExactText: 'Startup',
+        anchorStartOffset: 2,
+        anchorEndOffset: 9,
+        question: 'What is startup?',
+        status: 'answered',
+        createdAt: '2026-07-29T10:00:00.000Z',
+        updatedAt: '2026-07-29T10:01:00.000Z',
+      },
+    ]);
+
+    const user = userEvent.setup();
+    render(<CodeAnalysisWorkbench />);
+
+    await user.click(await screen.findByRole('button', { name: 'Ann Session' }));
+    await waitFor(() =>
+      expect(window.api.codeAnalysis.getSession).toHaveBeenCalledWith('session-ann'),
+    );
+
+    // The annotated text is highlighted as a mark in the turn's markdown.
+    const marks = document.querySelectorAll('mark[data-annotation-ids]');
+    expect(marks).toHaveLength(1);
+    expect(marks[0]).toHaveTextContent('Startup');
+
+    // Clicking the mark activates the annotation and expands its sidebar card.
+    await user.click(marks[0]);
+    const card = screen.getByText('Startup', { selector: 'blockquote' }).closest('article')!;
+    await waitFor(() =>
+      expect(card.querySelector('[aria-expanded]')).toHaveAttribute('aria-expanded', 'true'),
+    );
+  });
+
+  it('scrolls to and focuses the source mark when view source is clicked', async () => {
+    // jsdom does not implement scrollIntoView, so inject a mock and delete it
+    // when the test is done.
+    const scrollSpy = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      writable: true,
+      value: scrollSpy,
+    });
+
+    const mockSession = {
+      id: 'session-ann2',
+      title: 'Ann Session Two',
+      status: 'active',
+      projectId: 'project-1',
+      activeBranchId: 'branch-1',
+      activeDocumentId: 'turn-1',
+      archivedAt: null,
+      createdAt: '2026-07-29T10:00:00.000Z',
+      updatedAt: '2026-07-29T10:01:00.000Z',
+    };
+    const mockBranches = [
+      {
+        id: 'branch-1',
+        sessionId: 'session-ann2',
+        name: 'main',
+        parentBranchId: null,
+        forkedFromDocumentId: null,
+        headDocumentId: 'turn-1',
+        createdAt: '2026-07-29T10:00:00.000Z',
+        updatedAt: '2026-07-29T10:01:00.000Z',
+      },
+    ];
+    const mockTurns = [
+      {
+        id: 'turn-1',
+        sessionId: 'session-ann2',
+        branchId: 'branch-1',
+        parentDocumentId: null,
+        goal: 'Explain startup',
+        contentMarkdown: '# Startup\n\nUses IPC.',
+        status: 'completed',
+        toolCallCount: 1,
+        createdAt: '2026-07-29T10:00:00.000Z',
+        updatedAt: '2026-07-29T10:01:00.000Z',
+      },
+    ];
+
+    (window.api.codeAnalysis.listRecentSessions as ReturnType<typeof vi.fn>).mockResolvedValue([
+      mockSession,
+    ]);
+    (window.api.codeAnalysis.getSession as ReturnType<typeof vi.fn>).mockResolvedValue({
+      session: mockSession,
+      branches: mockBranches,
+      turns: mockTurns,
+    });
+    (window.api.codeAnalysis.listAnnotations as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        id: 'ann-1',
+        analysisDocumentId: 'turn-1',
+        anchorExactText: 'Startup',
+        anchorStartOffset: 2,
+        anchorEndOffset: 9,
+        question: 'What is startup?',
+        status: 'answered',
+        createdAt: '2026-07-29T10:00:00.000Z',
+        updatedAt: '2026-07-29T10:01:00.000Z',
+      },
+    ]);
+
+    const user = userEvent.setup();
+    render(<CodeAnalysisWorkbench />);
+
+    await user.click(await screen.findByRole('button', { name: 'Ann Session Two' }));
+    await waitFor(() =>
+      expect(window.api.codeAnalysis.getSession).toHaveBeenCalledWith('session-ann2'),
+    );
+
+    // Expand the annotation so the "view source" affordance is visible. The
+    // real button's visible text matches; the anchor text carries the same
+    // label as an aria-label, so match visible text rather than role/name.
+    await user.click(document.querySelector('mark[data-annotation-ids]')!);
+    await screen.findByText(/view source|查看原文/i);
+
+    await user.click(screen.getByText(/view source|查看原文/i));
+
+    expect(scrollSpy).toHaveBeenCalled();
+    expect(document.querySelector('mark[data-annotation-ids]')).toHaveFocus();
+    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+  });
+
   it('checks out to a historical turn', async () => {
     const mockSession = {
       id: 'session-checkout',
