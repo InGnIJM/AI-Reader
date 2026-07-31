@@ -102,20 +102,70 @@ function getRenderedOffset(container: HTMLElement, node: Node, offset: number): 
   return total;
 }
 
+function isWhitespaceChar(ch: string): boolean {
+  return /\s/.test(ch);
+}
+
+/**
+ * Finds the plain-text offsets (in the rendered offset space used by
+ * buildSourceMapping) of the first and last non-whitespace characters within
+ * [rawStart, rawEnd). Offsets are never derived from `selection.toString()`:
+ * Chromium appends '\n' at block-level boundaries while jsdom does not, so
+ * whitespace counted from the string diverges from the rendered offset space
+ * in production while all jsdom tests still pass. Scanning the text nodes
+ * directly keeps the trimmed bounds in the same space as the segments.
+ */
+function getTrimmedRenderedBounds(
+  container: HTMLElement,
+  rawStart: number,
+  rawEnd: number,
+): { start: number; end: number } | null {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let renderedOffset = 0;
+  let start = -1;
+  let end = -1;
+  let current: Node | null = walker.nextNode();
+  while (current) {
+    const text = current.textContent ?? '';
+    if (text.trim() === '') {
+      current = walker.nextNode();
+      continue;
+    }
+    const nodeStart = renderedOffset;
+    const nodeEnd = renderedOffset + text.length;
+    const selStart = Math.max(rawStart, nodeStart);
+    const selEnd = Math.min(rawEnd, nodeEnd);
+    if (selStart < selEnd) {
+      for (let i = selStart; i < selEnd; i++) {
+        const ch = text.charAt(i - nodeStart);
+        if (!isWhitespaceChar(ch)) {
+          if (start < 0) start = i;
+          end = i + 1;
+        }
+      }
+    }
+    renderedOffset = nodeEnd;
+    current = walker.nextNode();
+  }
+  if (start < 0 || end < 0) return null;
+  return { start, end };
+}
+
 function resolveSourceSelectionRange(
   container: HTMLElement,
   range: Range,
   rawSelectedText: string,
   segments: TextSegment[],
 ): SourceSelectionRange | undefined {
-  const leadingWhitespace = rawSelectedText.length - rawSelectedText.trimStart().length;
-  const trailingWhitespace = rawSelectedText.length - rawSelectedText.trimEnd().length;
-  const renderedStart =
-    getRenderedOffset(container, range.startContainer, range.startOffset) + leadingWhitespace;
-  const renderedEnd =
-    getRenderedOffset(container, range.endContainer, range.endOffset) - trailingWhitespace;
-  const sourceStartOffset = mapRenderedOffsetToSource(renderedStart, segments, 'start');
-  const sourceEndOffset = mapRenderedOffsetToSource(renderedEnd, segments, 'end');
+  if (!rawSelectedText.trim()) return undefined;
+
+  const rawStart = getRenderedOffset(container, range.startContainer, range.startOffset);
+  const rawEnd = getRenderedOffset(container, range.endContainer, range.endOffset);
+  const bounds = getTrimmedRenderedBounds(container, rawStart, rawEnd);
+  if (bounds === null) return undefined;
+
+  const sourceStartOffset = mapRenderedOffsetToSource(bounds.start, segments, 'start');
+  const sourceEndOffset = mapRenderedOffsetToSource(bounds.end, segments, 'end');
 
   if (sourceStartOffset === null || sourceEndOffset === null) return undefined;
   if (sourceStartOffset >= sourceEndOffset) return undefined;

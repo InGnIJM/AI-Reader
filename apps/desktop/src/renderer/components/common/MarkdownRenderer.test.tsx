@@ -607,5 +607,31 @@ describe('MarkdownRenderer', () => {
         sourceEndOffset: 16,
       });
     });
+
+    it('should ignore the trailing newline Chromium appends at block boundaries', () => {
+      const onTextSelect = vi.fn();
+      const { container } = render(
+        <MarkdownRenderer content="说明文字" onTextSelect={onTextSelect} />,
+      );
+      // Selection covers the whole block element.
+      const range = document.createRange();
+      range.selectNodeContents(container.querySelector('p')!);
+      // Chromium appends "\n" at block-level boundaries to selection.toString()
+      // while jsdom does not; that newline has no rendered text. The trimmed
+      // source offsets must still cover all four characters, otherwise the
+      // main-process anchor validation rejects the annotation.
+      vi.spyOn(window, 'getSelection').mockReturnValue({
+        toString: () => '说明文字\n',
+        rangeCount: 1,
+        getRangeAt: () => range,
+      } as unknown as Selection);
+
+      fireEvent.mouseUp(container.querySelector('[data-testid="markdown-renderer"]')!);
+
+      expect(onTextSelect).toHaveBeenCalledWith('说明文字', range, {
+        sourceStartOffset: 0,
+        sourceEndOffset: 4,
+      });
+    });
   });
 });
