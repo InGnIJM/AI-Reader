@@ -47,6 +47,10 @@ export class CodeAnalysisService {
               WHERE s.project_id = code_projects.id
                 AND s.status = 'active')
                 AS conversationCount,
+             (SELECT COUNT(*) FROM analysis_sessions s
+              WHERE s.project_id = code_projects.id
+                AND s.status = 'archived')
+                AS archivedConversationCount,
              created_at AS createdAt, updated_at AS updatedAt
       FROM code_projects WHERE root_path_hash = ?
     `,
@@ -97,6 +101,7 @@ export class CodeAnalysisService {
         `
       SELECT p.id, p.name, p.root_path AS rootPath, p.root_path_hash AS rootPathHash,
              COUNT(CASE WHEN s.status = 'active' THEN 1 END) AS conversationCount,
+             COUNT(CASE WHEN s.status = 'archived' THEN 1 END) AS archivedConversationCount,
              p.created_at AS createdAt, p.updated_at AS updatedAt
       FROM code_projects p
       LEFT JOIN analysis_sessions s ON s.project_id = p.id

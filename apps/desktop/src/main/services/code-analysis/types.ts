@@ -8,6 +8,7 @@ export interface CodeProject {
   rootPath: string;
   rootPathHash: string;
   conversationCount?: number;
+  archivedConversationCount?: number;
   createdAt: string;
   updatedAt: string;
 }
