@@ -10,6 +10,12 @@ export interface AnalysisDiscussionMessageItem {
 
 export interface AnalysisAnnotationItem {
   id: string;
+  /** Owning analysis turn (document) id, used to scope highlights to the right turn */
+  analysisDocumentId?: string;
+  /** Source offset of the anchor start in the turn's markdown, when available */
+  anchorStartOffset?: number;
+  /** Source offset of the anchor end in the turn's markdown, when available */
+  anchorEndOffset?: number;
   anchorExactText: string;
   question: string;
   status: string;
@@ -21,6 +27,8 @@ export interface AnnotationSidebarProps {
   activeAnnotationId?: string;
   onActivate?: (annotationId: string) => void;
   onViewSource?: (annotationId: string) => void;
+  /** Label for the "view source" affordance; defaults to a hardcoded Chinese label. */
+  viewSourceLabel?: string;
   emptyLabel?: string;
   statusLabels?: Record<string, string>;
 }
@@ -30,6 +38,7 @@ export function AnnotationSidebar({
   activeAnnotationId,
   onActivate,
   onViewSource,
+  viewSourceLabel,
   emptyLabel = 'No comments yet.',
   statusLabels,
 }: AnnotationSidebarProps) {
@@ -91,7 +100,32 @@ export function AnnotationSidebar({
                   }
                 }}
               >
-                <blockquote>{annotation.anchorExactText}</blockquote>
+                <blockquote
+                  className={onViewSource ? styles.anchorText : undefined}
+                  onClick={
+                    onViewSource
+                      ? (e) => {
+                          e.stopPropagation();
+                          onViewSource(annotation.id);
+                        }
+                      : undefined
+                  }
+                  onKeyDown={
+                    onViewSource
+                      ? (e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onViewSource(annotation.id);
+                          }
+                        }
+                      : undefined
+                  }
+                  tabIndex={onViewSource ? 0 : undefined}
+                  aria-label={onViewSource ? viewSourceLabel ?? '查看原文' : undefined}
+                >
+                  {annotation.anchorExactText}
+                </blockquote>
                 <span>{statusLabels?.[annotation.status] ?? annotation.status}</span>
               </div>
               {isExpanded && (
@@ -113,7 +147,7 @@ export function AnnotationSidebar({
                         onViewSource(annotation.id);
                       }}
                     >
-                      查看原文
+                      {viewSourceLabel ?? '查看原文'}
                     </button>
                   )}
                 </div>

@@ -22,7 +22,7 @@ export interface SourceSelectionRange {
 /**
  * Annotation definition with source offsets.
  */
-interface AnnotationDef {
+export interface AnnotationDef {
   id: string;
   startOffset: number;
   endOffset: number;
