@@ -32,10 +32,19 @@ export class AnalysisAnnotationService {
     const end = hasSourceOffsets ? input.sourceEndOffset! : start + input.selectedText.length;
     if (hasSourceOffsets) {
       // Source offsets must be finite integers within bounds, and the extracted
-      // text must match the selection after whitespace folding. This rejects
-      // NaN/invalid offsets and anchors that would point at different text
-      // (e.g. from a stale selection after the document changed).
-      const normalize = (value: string) => value.replace(/\s+/g, ' ').trim();
+      // text must match the selection once Markdown inline syntax is stripped
+      // (the renderer shows plain text while the source keeps `**`, backticks,
+      // link syntax). This rejects NaN/invalid offsets and anchors that would
+      // point at different text while accepting selections spanning formatting.
+      const stripMarkdown = (value: string) =>
+        value
+          .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+          .replace(/\*\*([^*]+)\*\*/g, '$1')
+          .replace(/__([^_]+)__/g, '$1')
+          .replace(/\*([^*]+)\*/g, '$1')
+          .replace(/`([^`]*)`/g, '$1');
+      const normalize = (value: string) =>
+        stripMarkdown(value).replace(/\s+/g, ' ').trim();
       const isValid =
         Number.isInteger(start) &&
         Number.isInteger(end) &&

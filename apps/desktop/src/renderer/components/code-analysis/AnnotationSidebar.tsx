@@ -17,6 +17,8 @@ export interface AnalysisAnnotationItem {
   /** Source offset of the anchor end in the turn's markdown, when available */
   anchorEndOffset?: number;
   anchorExactText: string;
+  /** The plain (rendered) text the user selected; preferred for display. */
+  selectedText?: string;
   question: string;
   status: string;
   messages?: AnalysisDiscussionMessageItem[];
@@ -124,7 +126,7 @@ export function AnnotationSidebar({
                   tabIndex={onViewSource ? 0 : undefined}
                   aria-label={onViewSource ? viewSourceLabel ?? '查看原文' : undefined}
                 >
-                  {annotation.anchorExactText}
+                  {annotation.selectedText ?? annotation.anchorExactText}
                 </blockquote>
                 <span>{statusLabels?.[annotation.status] ?? annotation.status}</span>
               </div>
