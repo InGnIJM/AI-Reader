@@ -1183,10 +1183,19 @@ export default function CodeAnalysisWorkbench() {
               value={comment}
               placeholder={text.commentPlaceholder}
               onChange={(event) => setComment(event.target.value)}
+              onKeyDown={(e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                  e.preventDefault();
+                  void createAnnotation();
+                }
+              }}
             />
-            <button type="button" onClick={createAnnotation} disabled={!comment.trim()}>
-              {text.comment}
-            </button>
+            <div className={componentStyles.commentFooter}>
+              <span className={componentStyles.commentHint}>{text.commentHint}</span>
+              <button type="button" onClick={createAnnotation} disabled={!comment.trim()}>
+                {text.comment}
+              </button>
+            </div>
           </div>
         ) : null}
       </aside>
