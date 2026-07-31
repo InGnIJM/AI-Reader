@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
+import type { AnalysisExportArtifact, AnalysisExportFormat } from '@ai-reader/shared';
 import type { DatabaseClient } from '../../db/client';
 import type { AnalysisDocument } from './types';
 
@@ -105,6 +106,61 @@ export class AnalysisExportService {
       createdAt: document.createdAt,
       exportedAt: new Date().toISOString(),
     };
+  }
+
+  /**
+   * 通用导出入口：按格式生成「默认文件名 + 内容」制品。
+   * 新增格式时在 switch 中扩展（serializer 模式）。
+   */
+  async exportDocument(
+    documentId: string,
+    format: AnalysisExportFormat,
+  ): Promise<AnalysisExportArtifact> {
+    const baseName = this.sanitizeFileName(this.getExportDocument(documentId).sessionTitle);
+    switch (format) {
+      case 'markdown':
+        return {
+          format,
+          defaultFileName: `${baseName}.md`,
+          content: await this.exportMarkdown(documentId),
+        };
+      case 'json':
+        return {
+          format,
+          defaultFileName: `${baseName}.json`,
+          content: JSON.stringify(await this.exportJson(documentId), null, 2),
+        };
+      default:
+        throw new Error(`Unsupported export format: ${String(format)}`);
+    }
+  }
+
+  /**
+   * 通用导入入口：按 payload.type 分发到对应解析器。
+   * 新增格式时在 importers 注册表中添加（importer 模式）。
+   */
+  async importDocument(payload: unknown): Promise<AnalysisDocument> {
+    if (!payload || typeof payload !== 'object') {
+      throw new Error('Invalid import payload: expected an object');
+    }
+    const type = String((payload as { type?: unknown }).type ?? 'unknown');
+    const importer = this.importers[type];
+    if (!importer) {
+      throw new Error(`Unsupported import format: ${type}`);
+    }
+    return importer(payload);
+  }
+
+  /** 导入格式注册表：key 为 payload.type */
+  private importers: Record<string, (payload: unknown) => Promise<AnalysisDocument>> = {
+    'code-analysis-document': (payload) =>
+      this.importJson(payload as AireaderCodeAnalysisExport),
+  };
+
+  /** 去掉文件名中不允许的字符，避免默认文件名触发保存对话框报错 */
+  private sanitizeFileName(name: string): string {
+    const cleaned = name.replace(/[\\/:*?"<>|]/g, '_').trim();
+    return cleaned || 'export';
   }
 
   async importJson(payload: AireaderCodeAnalysisExport): Promise<AnalysisDocument> {
@@ -237,10 +293,12 @@ export class AnalysisExportService {
     const row = this.db.db
       .prepare(
         `
-      SELECT id, goal, content_markdown AS contentMarkdown,
-             status, model_id AS modelId, tool_call_count AS toolCallCount,
-             created_at AS createdAt, updated_at AS updatedAt
-      FROM analysis_documents WHERE id = ?
+      SELECT d.id, s.project_id AS projectId, d.goal, d.content_markdown AS contentMarkdown,
+             d.status, d.model_id AS modelId, d.tool_call_count AS toolCallCount,
+             d.created_at AS createdAt, d.updated_at AS updatedAt
+      FROM analysis_documents d
+      JOIN analysis_sessions s ON s.id = d.session_id
+      WHERE d.id = ?
     `,
       )
       .get(documentId) as AnalysisDocument | undefined;

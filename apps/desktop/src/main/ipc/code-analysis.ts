@@ -2,6 +2,8 @@ import { BrowserWindow, dialog, ipcMain } from 'electron';
 import { IPC_CHANNELS, createLogger } from '@ai-reader/shared';
 import type {
   AnalysisBranch,
+  AnalysisExportArtifact,
+  AnalysisExportFormat,
   AnalysisSession,
   AnalysisSessionDetail,
   AnalysisTurn,
@@ -24,7 +26,6 @@ import type {
   OpenDirectoryDialogResult,
 } from '@ai-reader/shared';
 import type {
-  AireaderCodeAnalysisExport,
   AnalysisAnnotationService,
   AnalysisBranchService,
   AnalysisExportService,
@@ -167,21 +168,17 @@ export function registerCodeAnalysisHandlers(deps: CodeAnalysisHandlerDeps): voi
   );
 
   ipcMain.handle(
-    IPC_CHANNELS.CODE_ANALYSIS_EXPORT_MARKDOWN,
-    async (_event, documentId: string): Promise<IPCResult<string>> =>
-      handle('codeAnalysis:exportMarkdown', () => deps.analysisExportService.exportMarkdown(documentId)),
+    IPC_CHANNELS.CODE_ANALYSIS_EXPORT_DOCUMENT,
+    async (_event, documentId: string, format: AnalysisExportFormat): Promise<IPCResult<AnalysisExportArtifact>> =>
+      handle('codeAnalysis:exportDocument', () =>
+        deps.analysisExportService.exportDocument(documentId, format),
+      ),
   );
 
   ipcMain.handle(
-    IPC_CHANNELS.CODE_ANALYSIS_EXPORT_JSON,
-    async (_event, documentId: string): Promise<IPCResult<AireaderCodeAnalysisExport>> =>
-      handle('codeAnalysis:exportJson', () => deps.analysisExportService.exportJson(documentId)),
-  );
-
-  ipcMain.handle(
-    IPC_CHANNELS.CODE_ANALYSIS_IMPORT_JSON,
-    async (_event, payload: AireaderCodeAnalysisExport): Promise<IPCResult<CodeAnalysisDocumentData>> =>
-      handle('codeAnalysis:importJson', () => deps.analysisExportService.importJson(payload)),
+    IPC_CHANNELS.CODE_ANALYSIS_IMPORT_DOCUMENT,
+    async (_event, payload: unknown): Promise<IPCResult<CodeAnalysisDocumentData>> =>
+      handle('codeAnalysis:importDocument', () => deps.analysisExportService.importDocument(payload)),
   );
 
   // ── Session handlers ────────────────────────────────────────────────────────
