@@ -125,6 +125,75 @@ describe('analysis annotations and replies', () => {
     expect((await annotations.getById(annotation.id))!.status).toBe('answered');
   });
 
+  it('creates a formatted markdown annotation from source offsets', async () => {
+    const now = new Date().toISOString();
+    db.db
+      .prepare(
+        `INSERT INTO analysis_documents
+          (id, session_id, branch_id, goal, content_markdown, status, model_id, tool_call_count, created_at, updated_at)
+         VALUES ('doc-link', 'session-base', 'branch-base', 'Explain link', 'here and [here](http://x.com)', 'completed', 'mock', 0, ?, ?)`,
+      )
+      .run(now, now);
+
+    const annotations = new AnalysisAnnotationService(db);
+    const annotation = await annotations.create({
+      analysisDocumentId: 'doc-link',
+      selectedText: 'here',
+      sourceStartOffset: 10,
+      sourceEndOffset: 14,
+      question: 'What does this link mean?',
+    });
+
+    expect(annotation.anchorStartOffset).toBe(10);
+    expect(annotation.anchorEndOffset).toBe(14);
+    expect(annotation.anchorExactText).toBe('here');
+    expect(annotation.selectedText).toBe('here');
+  });
+
+  it('rejects NaN source offsets', async () => {
+    const now = new Date().toISOString();
+    db.db
+      .prepare(
+        `INSERT INTO analysis_documents
+          (id, session_id, branch_id, goal, content_markdown, status, model_id, tool_call_count, created_at, updated_at)
+         VALUES ('doc-link', 'session-base', 'branch-base', 'Explain link', 'here and [here](http://x.com)', 'completed', 'mock', 0, ?, ?)`,
+      )
+      .run(now, now);
+
+    const annotations = new AnalysisAnnotationService(db);
+    await expect(
+      annotations.create({
+        analysisDocumentId: 'doc-link',
+        selectedText: 'here',
+        sourceStartOffset: NaN,
+        sourceEndOffset: 14,
+        question: 'q',
+      }),
+    ).rejects.toThrow('Selected text offsets are invalid');
+  });
+
+  it('rejects source offsets whose extracted text does not match the selection', async () => {
+    const now = new Date().toISOString();
+    db.db
+      .prepare(
+        `INSERT INTO analysis_documents
+          (id, session_id, branch_id, goal, content_markdown, status, model_id, tool_call_count, created_at, updated_at)
+         VALUES ('doc-link', 'session-base', 'branch-base', 'Explain link', 'here and [here](http://x.com)', 'completed', 'mock', 0, ?, ?)`,
+      )
+      .run(now, now);
+
+    const annotations = new AnalysisAnnotationService(db);
+    await expect(
+      annotations.create({
+        analysisDocumentId: 'doc-link',
+        selectedText: 'here',
+        sourceStartOffset: 5,
+        sourceEndOffset: 8,
+        question: 'q',
+      }),
+    ).rejects.toThrow('Selected text offsets are invalid');
+  });
+
   it('reply to turn 2 includes turn 2 content and excludes sibling branch content', async () => {
     const now = new Date().toISOString();
 

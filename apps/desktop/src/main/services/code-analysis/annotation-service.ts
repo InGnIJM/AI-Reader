@@ -7,6 +7,8 @@ export interface CreateAnalysisAnnotationInput {
   analysisDocumentId: string;
   selectedText: string;
   question: string;
+  sourceStartOffset?: number;
+  sourceEndOffset?: number;
 }
 
 export class AnalysisAnnotationService {
@@ -18,10 +20,33 @@ export class AnalysisAnnotationService {
       .get(input.analysisDocumentId) as { contentMarkdown: string } | undefined;
     if (!doc) throw new Error(`Analysis document not found: ${input.analysisDocumentId}`);
 
-    const start = doc.contentMarkdown.indexOf(input.selectedText);
-    if (start < 0) throw new Error('Selected text not found in analysis document');
-
-    const end = start + input.selectedText.length;
+    const hasSourceOffsets =
+      typeof input.sourceStartOffset === 'number' &&
+      typeof input.sourceEndOffset === 'number';
+    const start = hasSourceOffsets
+      ? input.sourceStartOffset!
+      : doc.contentMarkdown.indexOf(input.selectedText);
+    const end = hasSourceOffsets ? input.sourceEndOffset! : start + input.selectedText.length;
+    if (hasSourceOffsets) {
+      // Source offsets must be finite integers within bounds, and the extracted
+      // text must match the selection after whitespace folding. This rejects
+      // NaN/invalid offsets and anchors that would point at different text
+      // (e.g. from a stale selection after the document changed).
+      const normalize = (value: string) => value.replace(/\s+/g, ' ').trim();
+      const isValid =
+        Number.isInteger(start) &&
+        Number.isInteger(end) &&
+        start >= 0 &&
+        end <= doc.contentMarkdown.length &&
+        start < end &&
+        normalize(doc.contentMarkdown.substring(start, end)) === normalize(input.selectedText);
+      if (!isValid) {
+        throw new Error('Selected text offsets are invalid');
+      }
+    } else if (start < 0) {
+      throw new Error('Selected text not found in analysis document');
+    }
+    const anchorExactText = doc.contentMarkdown.substring(start, end);
     const id = randomUUID();
     const now = new Date().toISOString();
     const prefix = doc.contentMarkdown.substring(Math.max(0, start - 50), start);
@@ -32,11 +57,23 @@ export class AnalysisAnnotationService {
         `
       INSERT INTO analysis_annotations
         (id, analysis_document_id, anchor_start_offset, anchor_end_offset, anchor_exact_text,
-         anchor_prefix, anchor_suffix, question, status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+         selected_text, anchor_prefix, anchor_suffix, question, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
     `,
       )
-      .run(id, input.analysisDocumentId, start, end, input.selectedText, prefix, suffix, input.question, now, now);
+      .run(
+        id,
+        input.analysisDocumentId,
+        start,
+        end,
+        anchorExactText,
+        input.selectedText,
+        prefix,
+        suffix,
+        input.question,
+        now,
+        now,
+      );
 
     await this.addMessage({ annotationId: id, role: 'user', content: input.question });
     const created = await this.getById(id);
@@ -50,7 +87,8 @@ export class AnalysisAnnotationService {
         `
       SELECT id, analysis_document_id AS analysisDocumentId,
              anchor_start_offset AS anchorStartOffset, anchor_end_offset AS anchorEndOffset,
-             anchor_exact_text AS anchorExactText, anchor_prefix AS anchorPrefix,
+             anchor_exact_text AS anchorExactText, selected_text AS selectedText,
+             anchor_prefix AS anchorPrefix,
              anchor_suffix AS anchorSuffix, question, status,
              created_at AS createdAt, updated_at AS updatedAt
       FROM analysis_annotations WHERE id = ?
@@ -72,7 +110,8 @@ export class AnalysisAnnotationService {
         `
       SELECT id, analysis_document_id AS analysisDocumentId,
              anchor_start_offset AS anchorStartOffset, anchor_end_offset AS anchorEndOffset,
-             anchor_exact_text AS anchorExactText, anchor_prefix AS anchorPrefix,
+             anchor_exact_text AS anchorExactText, selected_text AS selectedText,
+             anchor_prefix AS anchorPrefix,
              anchor_suffix AS anchorSuffix, question, status,
              created_at AS createdAt, updated_at AS updatedAt
       FROM analysis_annotations WHERE analysis_document_id = ?
