@@ -123,6 +123,36 @@ describe('AnnotationSidebar manual toggle', () => {
     fireEvent.click(header);
     expect(header).toHaveAttribute('aria-expanded', 'false');
   });
+
+  it('should keep a manually collapsed answered annotation collapsed on updates', () => {
+    const answered = makeAnnotation({
+      id: 'ann-answered',
+      anchorExactText: 'answered text',
+      status: 'answered',
+      messages: [{ id: 'm1', role: 'assistant', content: 'AI reply' }],
+    });
+
+    const { rerender } = render(
+      <AnnotationSidebar annotations={[answered]} />,
+    );
+
+    // Answered annotations auto-expand on first appearance.
+    const header = screen.getByText('answered text').closest('[aria-expanded]')!;
+    expect(header).toHaveAttribute('aria-expanded', 'true');
+
+    // Manually collapse it.
+    fireEvent.click(header);
+    expect(header).toHaveAttribute('aria-expanded', 'false');
+
+    // A later annotations update must not reopen it.
+    rerender(
+      <AnnotationSidebar
+        annotations={[answered, makeAnnotation({ id: 'ann-2', anchorExactText: 'other text' })]}
+      />,
+    );
+    const headerAfter = screen.getByText('answered text').closest('[aria-expanded]')!;
+    expect(headerAfter).toHaveAttribute('aria-expanded', 'false');
+  });
 });
 
 // ── Collapsed Header Content ─────────────────────────────────────────────────

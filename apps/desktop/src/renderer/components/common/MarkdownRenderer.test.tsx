@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -654,6 +655,25 @@ describe('MarkdownRenderer', () => {
       // which the main process accepts once inline syntax is stripped.
       const sr = onTextSelect.mock.calls[0]?.[2];
       expect(content.substring(sr.sourceStartOffset, sr.sourceEndOffset)).toBe(content);
+    });
+  });
+
+  describe('StrictMode compatibility', () => {
+    it('renders annotation marks when the body is double-invoked in dev StrictMode', () => {
+      const content = '使用 **pnpm** 作为包管理器的 **monorepo** 项目';
+      const { container } = render(
+        <StrictMode>
+          <MarkdownRenderer
+            content={content}
+            annotations={[{ id: 'a1', startOffset: 0, endOffset: content.length }]}
+          />
+        </StrictMode>,
+      );
+      const marks = container.querySelectorAll('mark[data-annotation-ids]');
+      const markText = Array.from(marks)
+        .map((m) => m.textContent)
+        .join('');
+      expect(markText).toBe('使用 pnpm 作为包管理器的 monorepo 项目');
     });
   });
 });
