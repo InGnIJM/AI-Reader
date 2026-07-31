@@ -90,6 +90,7 @@ export const IPC_CHANNELS = {
   CODE_ANALYSIS_LIST_ANNOTATIONS: 'codeAnalysis:listAnnotations',
   CODE_ANALYSIS_LIST_ANNOTATION_MESSAGES: 'codeAnalysis:listAnnotationMessages',
   CODE_ANALYSIS_REPLY_TO_ANNOTATION: 'codeAnalysis:replyToAnnotation',
+  CODE_ANALYSIS_DELETE_ANNOTATION: 'codeAnalysis:deleteAnnotation',
   /** 按格式导出分析文档（生成内容制品） */
   CODE_ANALYSIS_EXPORT_DOCUMENT: 'codeAnalysis:exportDocument',
   /** 按格式导入分析文档（自动识别 payload 类型） */

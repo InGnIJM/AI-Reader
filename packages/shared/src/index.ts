@@ -29,6 +29,7 @@ export type {
   CodeAnalysisToolTraceData,
   CodeAnalysisAnnotationCreatePayload,
   CodeAnalysisAnnotationData,
+  CodeAnalysisDeleteAnnotationPayload,
   CodeAnalysisDiscussionMessageData,
   AppLanguage,
   AnalysisSessionStatus,

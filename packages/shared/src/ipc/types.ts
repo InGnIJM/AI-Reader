@@ -324,6 +324,11 @@ export type CodeAnalysisAnnotationCreatePayload =
   | CodeAnalysisLegacyAnnotationCreatePayload
   | CodeAnalysisSourceAnnotationCreatePayload;
 
+/** 删除批注：其讨论消息通过外键级联删除 */
+export interface CodeAnalysisDeleteAnnotationPayload {
+  annotationId: string;
+}
+
 export interface CodeAnalysisAnnotationData {
   id: string;
   analysisDocumentId: string;
