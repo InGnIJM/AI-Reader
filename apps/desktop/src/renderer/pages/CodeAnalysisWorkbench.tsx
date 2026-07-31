@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   AnalysisBranch,
   AnalysisExportFormat,
@@ -18,13 +18,16 @@ import {
   ToolTraceTimeline,
 } from '../components/code-analysis';
 import type { AnalysisAnnotationItem, ToolTraceItem } from '../components/code-analysis';
-import type { SourceSelectionRange } from '../components/common/MarkdownRenderer';
+import type { AnnotationDef, SourceSelectionRange } from '../components/common/MarkdownRenderer';
 import componentStyles from '../components/code-analysis/CodeAnalysisComponents.module.css';
 import { codeAnalysisText } from './code-analysis-i18n';
 import type { AppLanguage } from './code-analysis-i18n';
 import styles from './CodeAnalysisWorkbench.module.css';
 
-type CodeProject = Pick<CodeAnalysisProjectData, 'id' | 'name' | 'conversationCount'>;
+type CodeProject = Pick<
+  CodeAnalysisProjectData,
+  'id' | 'name' | 'conversationCount' | 'archivedConversationCount'
+>;
 type AnalysisDocument = CodeAnalysisDocumentData;
 
 interface ConversationMessage {
@@ -52,6 +55,24 @@ function turnToAnalysisDocument(
   };
 }
 
+/**
+ * Scrolls the rendered <mark> for an annotation into view and focuses it.
+ * Marks carry `data-annotation-ids` as a comma-separated list; match by exact
+ * token so `ann-1` never matches `ann-10`.
+ */
+function focusAnnotationMark(annotationId: string): boolean {
+  const marks = document.querySelectorAll<HTMLElement>('mark[data-annotation-ids]');
+  for (const mark of marks) {
+    const ids = (mark.dataset.annotationIds ?? '').split(',');
+    if (ids.includes(annotationId)) {
+      mark.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      mark.focus();
+      return true;
+    }
+  }
+  return false;
+}
+
 export default function CodeAnalysisWorkbench() {
   const [language, setLanguage] = useState<AppLanguage>('en-US');
   const [projects, setProjects] = useState<CodeProject[]>([]);
@@ -68,6 +89,36 @@ export default function CodeAnalysisWorkbench() {
   const [traces, setTraces] = useState<ToolTraceItem[]>([]);
   const [annotations, setAnnotations] = useState<AnalysisAnnotationItem[]>([]);
   const [activeAnnotationId, setActiveAnnotationId] = useState<string | undefined>();
+
+  // Annotations with valid source offsets, grouped by the turn (analysis
+  // document) they belong to, ready for MarkdownRenderer highlighting. Entries
+  // without usable offsets are skipped so stale data never mis-highlights.
+  const annotationsByDocument = useMemo(() => {
+    const map = new Map<string, AnnotationDef[]>();
+    for (const ann of annotations) {
+      if (!ann.analysisDocumentId) continue;
+      if (!Number.isInteger(ann.anchorStartOffset) || !Number.isInteger(ann.anchorEndOffset)) continue;
+      if (ann.anchorStartOffset! >= ann.anchorEndOffset!) continue;
+      const list = map.get(ann.analysisDocumentId) ?? [];
+      list.push({
+        id: ann.id,
+        startOffset: ann.anchorStartOffset!,
+        endOffset: ann.anchorEndOffset!,
+      });
+      map.set(ann.analysisDocumentId, list);
+    }
+    return map;
+  }, [annotations]);
+
+  const handleAnnotationClick = useCallback((annotationId: string) => {
+    // Activating the annotation expands the matching card in the sidebar.
+    setActiveAnnotationId(annotationId);
+  }, []);
+
+  const handleViewSource = useCallback((annotationId: string) => {
+    setActiveAnnotationId(annotationId);
+    focusAnnotationMark(annotationId);
+  }, []);
   const [selectedText, setSelectedText] = useState('');
   const [selectedSourceRange, setSelectedSourceRange] =
     useState<SourceSelectionRange | undefined>();
@@ -240,6 +291,7 @@ export default function CodeAnalysisWorkbench() {
       setMessages([]);
       setTraces([]);
       setAnnotations([]);
+      setActiveAnnotationId(undefined);
       setSelectedText('');
       setSelectedSourceRange(undefined);
       setComment('');
@@ -424,6 +476,7 @@ export default function CodeAnalysisWorkbench() {
           setMessages([]);
           setTraces([]);
           setAnnotations([]);
+          setActiveAnnotationId(undefined);
           setDocument(null);
           setSelectedText('');
           setSelectedSourceRange(undefined);
@@ -507,6 +560,7 @@ export default function CodeAnalysisWorkbench() {
     setMessages([]);
     setTraces([]);
     setAnnotations([]);
+    setActiveAnnotationId(undefined);
     setSelectedText('');
     setSelectedSourceRange(undefined);
     setComment('');
@@ -575,6 +629,7 @@ export default function CodeAnalysisWorkbench() {
       viewRequestSequence.current += 1;
       const requestId = viewRequestSequence.current;
       setDocument(nextDocument);
+      setActiveAnnotationId(undefined);
       setMessages([
         {
           id: `history-user-${nextDocument.id}`,
@@ -677,6 +732,7 @@ export default function CodeAnalysisWorkbench() {
     setGoal('');
     setTraces([]);
     setAnnotations([]);
+    setActiveAnnotationId(undefined);
     setIsRunning(true);
     setStatus(text.runningAnalysis);
     try {
@@ -1081,6 +1137,13 @@ export default function CodeAnalysisWorkbench() {
                         onTextSelect={(text, sourceRange) => {
                           void selectAnalysisText(message, text, sourceRange);
                         }}
+                        annotations={
+                          message.documentId
+                            ? annotationsByDocument.get(message.documentId)
+                            : undefined
+                        }
+                        activeAnnotationId={activeAnnotationId}
+                        onAnnotationClick={handleAnnotationClick}
                       />
                     )}
                   </article>
@@ -1102,6 +1165,9 @@ export default function CodeAnalysisWorkbench() {
         <AnnotationSidebar
           annotations={annotations}
           activeAnnotationId={activeAnnotationId}
+          onActivate={setActiveAnnotationId}
+          onViewSource={handleViewSource}
+          viewSourceLabel={text.viewSource}
           emptyLabel={text.noComments}
           statusLabels={{
             pending: text.pending,
