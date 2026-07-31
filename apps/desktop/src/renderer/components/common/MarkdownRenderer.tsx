@@ -390,23 +390,23 @@ function splitTextWithMarks(
 
 function annotateChildren(
   children: React.ReactNode,
-  positionRef: React.MutableRefObject<number>,
+  startPos: number,
   segments: TextSegment[],
   annotations: AnnotationDef[],
   activeAnnotationId: string | undefined,
   onAnnotationClick: ((id: string) => void) | undefined,
-): React.ReactNode {
+): { children: React.ReactNode; endPos: number } {
+  let pos = startPos;
   let childArray: React.ReactNode[] | null = null;
 
   React.Children.forEach(children, (child, index) => {
     if (typeof child === 'string') {
-      const startPos = positionRef.current;
-      const endPos = startPos + child.length;
-      positionRef.current = endPos;
+      const childStart = pos;
+      pos += child.length;
 
-      const merged = findAndMergeAnnotations(startPos, endPos, segments, annotations);
+      const merged = findAndMergeAnnotations(childStart, pos, segments, annotations);
       if (merged.length > 0) {
-        const annotated = splitTextWithMarks(child, startPos, merged, activeAnnotationId, onAnnotationClick);
+        const annotated = splitTextWithMarks(child, childStart, merged, activeAnnotationId, onAnnotationClick);
         if (annotated !== child) {
           if (!childArray) {
             childArray = React.Children.toArray(children);
@@ -415,25 +415,51 @@ function annotateChildren(
         }
       }
     } else if (typeof child === 'number') {
-      positionRef.current += String(child).length;
+      pos += String(child).length;
     } else if (React.isValidElement(child)) {
       // Recurse into inline elements (strong, a, em, code, del, etc.)
       const props = child.props as { children?: React.ReactNode };
       if (props.children != null) {
-        const newChildren = annotateChildren(
-          props.children, positionRef, segments, annotations, activeAnnotationId, onAnnotationClick,
+        const result = annotateChildren(
+          props.children, pos, segments, annotations, activeAnnotationId, onAnnotationClick,
         );
-        if (newChildren !== props.children) {
+        pos = result.endPos;
+        if (result.children !== props.children) {
           if (!childArray) {
             childArray = React.Children.toArray(children);
           }
-          childArray[index] = React.cloneElement(child, { key: child.key } as Record<string, unknown>, newChildren);
+          childArray[index] = React.cloneElement(child, { key: child.key } as Record<string, unknown>, result.children);
         }
       }
     }
   });
 
-  return childArray ?? children;
+  return { children: childArray ?? children, endPos: pos };
+}
+
+// ---------------------------------------------------------------------------
+// Block position resolution: derive a block's rendered-text start offset from
+// its source position (node.position). Computing the start per block instead
+// of threading a shared counter keeps the renderer safe under <StrictMode>,
+// where the body (and every block component) may be invoked twice while the
+// tree is parsed once.
+// ---------------------------------------------------------------------------
+
+type PositionedNode = {
+  position?: { start?: { offset?: number }; end?: { offset?: number } };
+};
+
+function blockRenderedStart(node: PositionedNode | undefined, segments: TextSegment[]): number {
+  const sStart = node?.position?.start?.offset ?? 0;
+  const sEnd = node?.position?.end?.offset ?? Number.MAX_SAFE_INTEGER;
+  let min = Number.POSITIVE_INFINITY;
+  for (const seg of segments) {
+    if (seg.sourceEnd > sStart && seg.sourceStart < sEnd) {
+      const renderedAt = seg.renderedStart + Math.max(0, sStart - seg.sourceStart);
+      if (renderedAt < min) min = renderedAt;
+    }
+  }
+  return min === Number.POSITIVE_INFINITY ? 0 : min;
 }
 
 // ---------------------------------------------------------------------------
@@ -446,7 +472,6 @@ const createMarkdownComponents = (
   activeAnnotationId?: string,
   onAnnotationClick?: (id: string) => void,
   segmentsRef?: React.MutableRefObject<TextSegment[]>,
-  positionRef?: React.MutableRefObject<number>,
 ): Components => {
   /**
    * Extracts plain text from React children (handles nested elements).
@@ -473,57 +498,58 @@ const createMarkdownComponents = (
   /**
    * Process block-level children: track position and inject annotation marks.
    */
-  function processBlock(children: React.ReactNode): React.ReactNode {
-    if (!annotations?.length || !segmentsRef?.current || !positionRef) {
+  function processBlock(node: unknown, children: React.ReactNode): React.ReactNode {
+    if (!annotations?.length || !segmentsRef?.current) {
       return children;
     }
+    const startPos = blockRenderedStart(node as PositionedNode | undefined, segmentsRef.current);
     return annotateChildren(
-      children, positionRef, segmentsRef.current, annotations, activeAnnotationId, onAnnotationClick,
-    );
+      children, startPos, segmentsRef.current, annotations, activeAnnotationId, onAnnotationClick,
+    ).children;
   }
 
   return {
-  h1: ({ node: _node, children, ...props }) => (
+  h1: ({ node, children, ...props }) => (
     <h1 id={headingId(children)} className={styles.h1} {...props}>
-      {processBlock(children)}
+      {processBlock(node, children)}
     </h1>
   ),
-  h2: ({ node: _node, children, ...props }) => (
+  h2: ({ node, children, ...props }) => (
     <h2 id={headingId(children)} className={styles.h2} {...props}>
-      {processBlock(children)}
+      {processBlock(node, children)}
     </h2>
   ),
-  h3: ({ node: _node, children, ...props }) => (
+  h3: ({ node, children, ...props }) => (
     <h3 id={headingId(children)} className={styles.h3} {...props}>
-      {processBlock(children)}
+      {processBlock(node, children)}
     </h3>
   ),
-  h4: ({ node: _node, children, ...props }) => (
+  h4: ({ node, children, ...props }) => (
     <h4 id={headingId(children)} className={styles.h4} {...props}>
-      {processBlock(children)}
+      {processBlock(node, children)}
     </h4>
   ),
-  p: ({ node: _node, children, ...props }) => (
+  p: ({ node, children, ...props }) => (
     <p className={styles.paragraph} {...props}>
-      {processBlock(children)}
+      {processBlock(node, children)}
     </p>
   ),
-  ul: ({ node: _node, children, ...props }) => (
+  ul: ({ node, children, ...props }) => (
     <ul className={styles.list} {...props}>
       {children}
     </ul>
   ),
-  ol: ({ node: _node, children, ...props }) => (
+  ol: ({ node, children, ...props }) => (
     <ol className={styles.orderedList} {...props}>
       {children}
     </ol>
   ),
-  li: ({ node: _node, children, ...props }) => (
+  li: ({ node, children, ...props }) => (
     <li className={styles.listItem} {...props}>
-      {processBlock(children)}
+      {processBlock(node, children)}
     </li>
   ),
-  code: ({ node: _node, children, className, ...props }) => {
+  code: ({ node, children, className, ...props }) => {
     const isCodeBlock = Boolean(className);
     if (isCodeBlock) {
       return (
@@ -540,30 +566,30 @@ const createMarkdownComponents = (
       </code>
     );
   },
-  blockquote: ({ node: _node, children, ...props }) => (
+  blockquote: ({ node, children, ...props }) => (
     <blockquote className={styles.blockquote} {...props}>
       {children}
     </blockquote>
   ),
-  table: ({ node: _node, children, ...props }) => (
+  table: ({ node, children, ...props }) => (
     <div className={styles.tableWrapper}>
       <table className={styles.table} {...props}>
         {children}
       </table>
     </div>
   ),
-  th: ({ node: _node, children, ...props }) => (
+  th: ({ node, children, ...props }) => (
     <th className={styles.th} {...props}>
-      {processBlock(children)}
+      {processBlock(node, children)}
     </th>
   ),
-  td: ({ node: _node, children, ...props }) => (
+  td: ({ node, children, ...props }) => (
     <td className={styles.td} {...props}>
-      {processBlock(children)}
+      {processBlock(node, children)}
     </td>
   ),
   hr: ({ node: _node, ...props }) => <hr className={styles.hr} {...props} />,
-  a: ({ node: _node, children, href, ...props }) => (
+  a: ({ node, children, href, ...props }) => (
     <a className={styles.link} href={href} {...props}>
       {children}
     </a>
@@ -595,12 +621,7 @@ export function MarkdownRenderer({
   onAnnotationClick,
 }: MarkdownRendererProps) {
   const segmentsRef = useRef<TextSegment[]>([]);
-  const positionRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // Reset the global rendered-text position counter at the start of each render.
-  // Components are rendered in document order, so this gives correct global offsets.
-  positionRef.current = 0;
 
   // Remark plugin that captures the mdast tree and builds the source mapping.
   const sourceMappingPlugin = useCallback(() => {
@@ -616,7 +637,6 @@ export function MarkdownRenderer({
       activeAnnotationId,
       onAnnotationClick,
       segmentsRef,
-      positionRef,
     ),
     [getHeadingId, annotations, activeAnnotationId, onAnnotationClick],
   );
