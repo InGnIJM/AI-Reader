@@ -101,7 +101,7 @@ export class AnalysisReplyEngine {
 
     const messages = buildAnalysisReplyMessages({
       goal: document.goal,
-      selectedText: annotation.anchorExactText,
+      selectedText: annotation.selectedText || annotation.anchorExactText,
       question: annotation.question,
       contentMarkdown: document.contentMarkdown,
       outputLanguage: this.deps.settings?.getLanguage() ?? 'zh-CN',
