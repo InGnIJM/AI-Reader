@@ -624,6 +624,73 @@ describe('CodeAnalysisWorkbench', () => {
     );
   });
 
+  it('sends an annotation with Ctrl+Enter from the comment composer', async () => {
+    (window.api.codeAnalysis.runTurn as ReturnType<typeof vi.fn>).mockResolvedValue({
+      session: {
+        id: 'session-kb',
+        title: 'Explain docs',
+        status: 'active',
+        projectId: 'project-1',
+        activeBranchId: 'branch-1',
+        activeDocumentId: 'doc-turn-1',
+        archivedAt: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      branch: {
+        id: 'branch-1',
+        sessionId: 'session-kb',
+        name: 'main',
+        parentBranchId: null,
+        forkedFromDocumentId: null,
+        headDocumentId: 'doc-turn-1',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      turn: {
+        id: 'doc-turn-1',
+        sessionId: 'session-kb',
+        branchId: 'branch-1',
+        parentDocumentId: null,
+        goal: 'Explain docs',
+        contentMarkdown: 'Click [here](http://x.com) now',
+        status: 'completed',
+        toolCallCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    });
+
+    const user = userEvent.setup();
+    render(<CodeAnalysisWorkbench />);
+    await user.click(screen.getByRole('button', { name: /select directory/i }));
+    await user.type(screen.getByLabelText(/analysis goal/i), 'Explain docs');
+    await user.keyboard('{Enter}');
+    const link = await screen.findByRole('link', { name: 'here' });
+    const range = document.createRange();
+    range.selectNodeContents(link);
+    vi.spyOn(window, 'getSelection').mockReturnValue({
+      toString: () => 'here',
+      rangeCount: 1,
+      getRangeAt: () => range,
+    } as unknown as Selection);
+    fireEvent.mouseUp(link);
+
+    const composer = screen.getByLabelText(/comment question/i);
+    await user.type(composer, 'Explain this link');
+    await user.keyboard('{Control>}{Enter}{/Control}');
+
+    await waitFor(() =>
+      expect(window.api.codeAnalysis.createAnnotation).toHaveBeenCalledWith({
+        analysisDocumentId: 'doc-turn-1',
+        selectedText: 'here',
+        sourceStartOffset: 7,
+        sourceEndOffset: 11,
+        question: 'Explain this link',
+      }),
+    );
+  });
+
   it('restores a selected conversation and its persisted annotation reply', async () => {
     const mockSession = {
       id: 'session-history',
