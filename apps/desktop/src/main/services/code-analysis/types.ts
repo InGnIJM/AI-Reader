@@ -14,6 +14,7 @@ export interface CodeProject {
 
 export interface AnalysisDocument {
   id: string;
+  projectId: string | null;
   goal: string;
   contentMarkdown: string;
   status: AnalysisStatus;
@@ -36,6 +37,7 @@ export interface AnalysisToolTrace {
 export interface AnalysisAnnotation {
   id: string;
   analysisDocumentId: string;
+  selectedText: string;
   anchorStartOffset: number;
   anchorEndOffset: number;
   anchorExactText: string;

@@ -43,10 +43,10 @@ export class CodeAnalysisService {
       .prepare(
         `
       SELECT id, name, root_path AS rootPath, root_path_hash AS rootPathHash,
-             (SELECT COUNT(*) FROM analysis_documents d
-              JOIN analysis_sessions s ON s.id = d.session_id
-              WHERE s.project_id = code_projects.id)
-               AS conversationCount,
+             (SELECT COUNT(*) FROM analysis_sessions s
+              WHERE s.project_id = code_projects.id
+                AND s.status = 'active')
+                AS conversationCount,
              created_at AS createdAt, updated_at AS updatedAt
       FROM code_projects WHERE root_path_hash = ?
     `,
@@ -96,11 +96,10 @@ export class CodeAnalysisService {
       .prepare(
         `
       SELECT p.id, p.name, p.root_path AS rootPath, p.root_path_hash AS rootPathHash,
-             COUNT(d.id) AS conversationCount,
+             COUNT(CASE WHEN s.status = 'active' THEN 1 END) AS conversationCount,
              p.created_at AS createdAt, p.updated_at AS updatedAt
       FROM code_projects p
       LEFT JOIN analysis_sessions s ON s.project_id = p.id
-      LEFT JOIN analysis_documents d ON d.session_id = s.id
       GROUP BY p.id
       ORDER BY p.updated_at DESC
     `,
@@ -111,7 +110,7 @@ export class CodeAnalysisService {
   async listDocumentsByProject(projectId: string | null): Promise<AnalysisDocument[]> {
     const whereClause = projectId === null ? 's.project_id IS NULL' : 's.project_id = ?';
     const statement = this.deps.db.db.prepare(`
-      SELECT d.id, d.goal, d.content_markdown AS contentMarkdown,
+      SELECT d.id, s.project_id AS projectId, d.goal, d.content_markdown AS contentMarkdown,
              d.status, d.model_id AS modelId, d.tool_call_count AS toolCallCount,
              d.created_at AS createdAt, d.updated_at AS updatedAt
       FROM analysis_documents d
@@ -127,11 +126,12 @@ export class CodeAnalysisService {
     return this.deps.db.db
       .prepare(
         `
-      SELECT id, goal, content_markdown AS contentMarkdown,
-             status, model_id AS modelId, tool_call_count AS toolCallCount,
-             created_at AS createdAt, updated_at AS updatedAt
-      FROM analysis_documents
-      ORDER BY updated_at DESC
+      SELECT d.id, s.project_id AS projectId, d.goal, d.content_markdown AS contentMarkdown,
+             d.status, d.model_id AS modelId, d.tool_call_count AS toolCallCount,
+             d.created_at AS createdAt, d.updated_at AS updatedAt
+      FROM analysis_documents d
+      JOIN analysis_sessions s ON s.id = d.session_id
+      ORDER BY d.updated_at DESC
       LIMIT ?
     `,
       )
@@ -534,10 +534,12 @@ export class CodeAnalysisService {
     const row = this.deps.db.db
       .prepare(
         `
-      SELECT id, goal, content_markdown AS contentMarkdown,
-             status, model_id AS modelId, tool_call_count AS toolCallCount,
-             created_at AS createdAt, updated_at AS updatedAt
-      FROM analysis_documents WHERE id = ?
+      SELECT d.id, s.project_id AS projectId, d.goal, d.content_markdown AS contentMarkdown,
+             d.status, d.model_id AS modelId, d.tool_call_count AS toolCallCount,
+             d.created_at AS createdAt, d.updated_at AS updatedAt
+      FROM analysis_documents d
+      JOIN analysis_sessions s ON s.id = d.session_id
+      WHERE d.id = ?
     `,
       )
       .get(id) as AnalysisDocument | undefined;
