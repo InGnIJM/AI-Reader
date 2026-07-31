@@ -1,7 +1,10 @@
 import { randomUUID } from 'crypto';
 
+import { createLogger } from '@ai-reader/shared';
 import type { DatabaseClient } from '../../db/client';
 import type { AnalysisAnnotation, AnalysisDiscussionMessage } from './types';
+
+const log = createLogger('annotation');
 
 export interface CreateAnalysisAnnotationInput {
   analysisDocumentId: string;
@@ -41,6 +44,13 @@ export class AnalysisAnnotationService {
         start < end &&
         normalize(doc.contentMarkdown.substring(start, end)) === normalize(input.selectedText);
       if (!isValid) {
+        log.warn(
+          `createAnnotation: invalid source offsets. ` +
+            `selectedText=${JSON.stringify(input.selectedText)} start=${start} end=${end} ` +
+            `contentLength=${doc.contentMarkdown.length} ` +
+            `actual=${JSON.stringify(normalize(doc.contentMarkdown.substring(start, end)))} ` +
+            `selected=${JSON.stringify(normalize(input.selectedText))}`,
+        );
         throw new Error('Selected text offsets are invalid');
       }
     } else if (start < 0) {
