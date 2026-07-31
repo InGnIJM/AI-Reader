@@ -176,6 +176,33 @@ describe('analysis annotations and replies', () => {
     expect(annotation.anchorExactText).toBe(content);
   });
 
+  it('accepts offsets that start inside Markdown bold syntax (half-covered span)', async () => {
+    const now = new Date().toISOString();
+    const content = '**pnpm** 作为包管理器的 **monorepo** 项目';
+    db.db
+      .prepare(
+        `INSERT INTO analysis_documents
+          (id, session_id, branch_id, goal, content_markdown, status, model_id, tool_call_count, created_at, updated_at)
+         VALUES ('doc-half', 'session-base', 'branch-base', 'Explain', ?, 'completed', 'mock', 0, ?, ?)`,
+      )
+      .run(content, now, now);
+
+    const annotations = new AnalysisAnnotationService(db);
+    const annotation = await annotations.create({
+      analysisDocumentId: 'doc-half',
+      selectedText: 'pnpm 作为包管理器的 monorepo 项目',
+      // Start at the 'p' of pnpm (index 2), i.e. AFTER the leading `**`.
+      sourceStartOffset: 2,
+      sourceEndOffset: content.length,
+      question: 'q',
+    });
+
+    expect(annotation.anchorStartOffset).toBe(2);
+    expect(annotation.anchorExactText).toBe(
+      'pnpm** 作为包管理器的 **monorepo** 项目',
+    );
+  });
+
   it('rejects NaN source offsets', async () => {
     const now = new Date().toISOString();
     db.db

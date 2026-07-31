@@ -42,7 +42,13 @@ export class AnalysisAnnotationService {
           .replace(/\*\*([^*]+)\*\*/g, '$1')
           .replace(/__([^_]+)__/g, '$1')
           .replace(/\*([^*]+)\*/g, '$1')
-          .replace(/`([^`]*)`/g, '$1');
+          .replace(/`([^`]*)`/g, '$1')
+          // A half-covered span starts/ends inside a marker (the selection began
+          // at the text inside `**bold**`, so the leading `**` is missing and
+          // the trailing `**` is left unpaired); drop stray markers so the
+          // visible text still compares equal.
+          .replace(/\*\*/g, '')
+          .replace(/`/g, '');
       const normalize = (value: string) =>
         stripMarkdown(value).replace(/\s+/g, ' ').trim();
       const isValid =
