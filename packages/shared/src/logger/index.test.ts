@@ -9,6 +9,11 @@ const mockScopedLog = {
 
 const mockLog = {
   scope: vi.fn().mockReturnValue(mockScopedLog),
+  transports: {
+    file: {
+      level: 'info' as string | false,
+    },
+  },
 };
 
 vi.mock('electron-log', () => ({
@@ -23,6 +28,10 @@ beforeEach(() => {
 });
 
 describe('createLogger', () => {
+  it('disables electron-log file transport under Vitest', () => {
+    expect(mockLog.transports.file.level).toBe(false);
+  });
+
   it('should call electron-log.scope with the given scope name', () => {
     createLogger('my-scope');
     expect(mockLog.scope).toHaveBeenCalledWith('my-scope');
