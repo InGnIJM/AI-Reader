@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { MarkdownRenderer } from '../common/MarkdownRenderer';
 import styles from './CodeAnalysisComponents.module.css';
 
@@ -48,7 +48,12 @@ export function AnnotationSidebar({
     return activeAnnotationId ? new Set([activeAnnotationId]) : new Set();
   });
 
-  // Auto-expand newly active annotations and answered annotations
+  // IDs whose answered state has already auto-expanded once. Auto-expansion
+  // must only happen for newly appearing annotations; once the user manually
+  // collapses a card, later annotation/active changes must not reopen it.
+  const autoExpandedRef = useRef<Set<string>>(new Set());
+
+  // Auto-expand the currently active annotation and newly answered annotations.
   useEffect(() => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -56,7 +61,13 @@ export function AnnotationSidebar({
         next.add(activeAnnotationId);
       }
       for (const annotation of annotations) {
-        if (annotation.status === 'answered' && annotation.messages && annotation.messages.length > 0) {
+        if (
+          annotation.status === 'answered' &&
+          annotation.messages &&
+          annotation.messages.length > 0 &&
+          !autoExpandedRef.current.has(annotation.id)
+        ) {
+          autoExpandedRef.current.add(annotation.id);
           next.add(annotation.id);
         }
       }
