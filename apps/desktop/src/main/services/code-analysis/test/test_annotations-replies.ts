@@ -150,6 +150,32 @@ describe('analysis annotations and replies', () => {
     expect(annotation.selectedText).toBe('here');
   });
 
+  it('accepts source offsets spanning Markdown inline syntax', async () => {
+    const now = new Date().toISOString();
+    const content = '使用 **pnpm** 作为包管理器的 **monorepo** 项目';
+    db.db
+      .prepare(
+        `INSERT INTO analysis_documents
+          (id, session_id, branch_id, goal, content_markdown, status, model_id, tool_call_count, created_at, updated_at)
+         VALUES ('doc-bold', 'session-base', 'branch-base', 'Explain', ?, 'completed', 'mock', 0, ?, ?)`,
+      )
+      .run(content, now, now);
+
+    const annotations = new AnalysisAnnotationService(db);
+    const annotation = await annotations.create({
+      analysisDocumentId: 'doc-bold',
+      // The rendered (plain) text the user selected; the source keeps `**`.
+      selectedText: '使用 pnpm 作为包管理器的 monorepo 项目',
+      sourceStartOffset: 0,
+      sourceEndOffset: content.length,
+      question: 'q',
+    });
+
+    expect(annotation.anchorStartOffset).toBe(0);
+    expect(annotation.anchorEndOffset).toBe(content.length);
+    expect(annotation.anchorExactText).toBe(content);
+  });
+
   it('rejects NaN source offsets', async () => {
     const now = new Date().toISOString();
     db.db

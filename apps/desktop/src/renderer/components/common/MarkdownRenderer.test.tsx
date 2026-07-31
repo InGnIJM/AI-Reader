@@ -634,31 +634,26 @@ describe('MarkdownRenderer', () => {
       });
     });
 
-    it('re-locates by text when the rendered offsets drift from the source', () => {
+    it('maps a selection spanning inline formatting to the source syntax span', () => {
+      const content = '使用 **pnpm** 作为包管理器的 **monorepo** 项目';
       const onTextSelect = vi.fn();
       const { container } = render(
-        <MarkdownRenderer content="one two" onTextSelect={onTextSelect} />,
+        <MarkdownRenderer content={content} onTextSelect={onTextSelect} />,
       );
-      const text = container.querySelector('p')!.firstChild as Text;
       const range = document.createRange();
-      range.setStart(text, 0);
-      range.setEnd(text, 3); // the range points at "one"
-      // Simulate a drift between the DOM selection and the selection text
-      // (Chromium can anchor element-boundary selections differently).
+      range.selectNodeContents(container.querySelector('p')!);
       vi.spyOn(window, 'getSelection').mockReturnValue({
-        toString: () => 'two',
+        toString: () => '使用 pnpm 作为包管理器的 monorepo 项目',
         rangeCount: 1,
         getRangeAt: () => range,
       } as unknown as Selection);
 
       fireEvent.mouseUp(container.querySelector('[data-testid="markdown-renderer"]')!);
 
-      // The rendered mapping would yield [0,3) ("one"); the fallback re-locates
-      // the selected text so the anchor covers exactly "two".
-      expect(onTextSelect).toHaveBeenCalledWith('two', range, {
-        sourceStartOffset: 4,
-        sourceEndOffset: 7,
-      });
+      // The mapped span covers the Markdown source including the ** markers,
+      // which the main process accepts once inline syntax is stripped.
+      const sr = onTextSelect.mock.calls[0]?.[2];
+      expect(content.substring(sr.sourceStartOffset, sr.sourceEndOffset)).toBe(content);
     });
   });
 });
