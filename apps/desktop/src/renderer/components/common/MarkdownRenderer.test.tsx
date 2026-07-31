@@ -244,6 +244,25 @@ describe('MarkdownRenderer', () => {
       expect(marks).toHaveLength(0);
     });
 
+    it('should mark inline code inside a nested list item exactly once', () => {
+      // A nested list item renders a <p> inside an <li>; both used to run
+      // processBlock, double-marking the text and corrupting positions.
+      const content =
+        '# 标题\n\n- **技术栈**:\n    - **前端**: 位于 `apps/desktop`，使用了 `electron-vite` 和 `Vite`。\n    - **测试**: 配置了 `vitest`。';
+      const idx = content.indexOf('electron-vite');
+      const { container } = render(
+        <MarkdownRenderer
+          content={content}
+          annotations={[
+            { id: 'ann-1', startOffset: idx, endOffset: idx + 'electron-vite'.length },
+          ]}
+        />,
+      );
+      const marks = container.querySelectorAll('mark[data-annotation-ids]');
+      expect(marks).toHaveLength(1);
+      expect(marks[0]).toHaveTextContent('electron-vite');
+    });
+
     it('should render a single annotation mark for annotated bold text', () => {
       // "Hello **bold** world"
       // source offsets: H=0 e=1 l=2 l=3 o=4 ' '=5 *=6 *=7 b=8 o=9 l=10 d=11 *=12 *=13 ' '=14 w=15 ...

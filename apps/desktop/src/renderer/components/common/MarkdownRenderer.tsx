@@ -417,6 +417,13 @@ function annotateChildren(
     } else if (typeof child === 'number') {
       pos += String(child).length;
     } else if (React.isValidElement(child)) {
+      const childType = child.type as { isBlockLevel?: boolean } | string;
+      if (typeof childType !== 'string' && childType.isBlockLevel) {
+        // Block-level elements handle their own children via their component's
+        // processBlock; recursing here would double-process nested blocks
+        // (e.g. a <p> inside an <li>) and corrupt the position counter.
+        return;
+      }
       // Recurse into inline elements (strong, a, em, code, del, etc.)
       const props = child.props as { children?: React.ReactNode };
       if (props.children != null) {
@@ -508,7 +515,7 @@ const createMarkdownComponents = (
     ).children;
   }
 
-  return {
+  const components: Components = {
   h1: ({ node, children, ...props }) => (
     <h1 id={headingId(children)} className={styles.h1} {...props}>
       {processBlock(node, children)}
@@ -595,6 +602,18 @@ const createMarkdownComponents = (
     </a>
   ),
   };
+
+  // Block-level components own their children's annotation processing via
+  // processBlock; marking them lets annotateChildren skip recursion into them,
+  // avoiding double-processing of nested blocks (e.g. a <p> inside an <li>).
+  const blockLevelNames = [
+    'h1', 'h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li', 'blockquote', 'table', 'th', 'td',
+  ];
+  for (const name of blockLevelNames) {
+    (components as Record<string, { isBlockLevel?: boolean }>)[name].isBlockLevel = true;
+  }
+
+  return components;
 };
 
 /**
