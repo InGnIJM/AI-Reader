@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import type { AnalysisSession } from '@ai-reader/shared';
+import type { AnalysisSession, AnalysisSessionStatus } from '@ai-reader/shared';
 
 import styles from './CodeAnalysisComponents.module.css';
 
@@ -8,6 +8,7 @@ interface SidebarProject {
   id: string;
   name: string;
   conversationCount?: number;
+  archivedConversationCount?: number;
 }
 
 interface SidebarDocument {
@@ -21,6 +22,7 @@ interface ProjectSidebarProps {
   recentDocuments: SidebarDocument[];
   localDocuments: SidebarDocument[];
   documentsByProject: Record<string, SidebarDocument[]>;
+  sessionsByProject?: Record<string, AnalysisSession[]>;
   expandedProjectIds: Set<string>;
   selectedProjectId?: string;
   selectedDocumentId?: string;
@@ -35,6 +37,20 @@ interface ProjectSidebarProps {
     language: string;
     chinese: string;
     english: string;
+    activeSessions?: string;
+    archivedSessions?: string;
+    sessionStatus?: string;
+    manageSession?: string;
+    renameSession?: string;
+    archiveSession?: string;
+    restoreSession?: string;
+    deleteSession?: string;
+    confirmDelete?: string;
+    cancel?: string;
+    sessionTitle?: string;
+    invalidSessionTitle?: string;
+    deleteSessionWarning?: string;
+    newSession?: string;
   };
   onSelectDirectory: () => void;
   onToggleProject: (project: SidebarProject) => void;
@@ -44,8 +60,17 @@ interface ProjectSidebarProps {
 
   // Session props (optional)
   recentSessions?: AnalysisSession[];
+  localSessions?: AnalysisSession[];
+  sessionStatus?: AnalysisSessionStatus;
   selectedSessionId?: string;
   onSelectSession?: (session: AnalysisSession) => void;
+  onSessionStatusChange?: (status: AnalysisSessionStatus) => void;
+  onRenameSession?: (sessionId: string, title: string) => void;
+  onArchiveSession?: (sessionId: string) => void;
+  onRestoreSession?: (sessionId: string) => void;
+  onDeleteSession?: (sessionId: string) => void;
+  onCreateSession?: (projectId: string | null) => void;
+  sessionActionsDisabled?: boolean;
 }
 
 function ConversationList({
@@ -85,37 +110,39 @@ function ConversationList({
 
 function SessionList({
   sessions,
-  selectedSessionId,
   emptyLabel,
-  onSelectSession,
+  listKey,
+  renderSession,
 }: {
   sessions: AnalysisSession[];
-  selectedSessionId?: string;
   emptyLabel: string;
-  onSelectSession?: (session: AnalysisSession) => void;
+  listKey: string;
+  renderSession: (session: AnalysisSession, rowKey: string) => ReactNode;
 }) {
   if (sessions.length === 0) return <p className={styles.muted}>{emptyLabel}</p>;
 
   return (
     <>
-      {sessions.map((session) => (
-        <button
-          className={styles.conversationItem}
-          data-active={session.id === selectedSessionId}
-          type="button"
-          aria-pressed={session.id === selectedSessionId}
-          title={session.title}
-          key={session.id}
-          onClick={() => onSelectSession?.(session)}
-        >
-          <span className="material-symbols-rounded" aria-hidden="true">
-            {session.status === 'archived' ? 'archive' : 'description'}
-          </span>
-          <span>{session.title}</span>
-        </button>
-      ))}
+      {sessions.map((session) => {
+        const rowKey = `${listKey}:${session.id}`;
+        return <div key={rowKey}>{renderSession(session, rowKey)}</div>;
+      })}
     </>
   );
+}
+
+interface SessionMenuState {
+  session: AnalysisSession;
+  rowKey: string;
+  top: number;
+  left: number;
+}
+
+interface RenameState {
+  session: AnalysisSession;
+  rowKey: string;
+  value: string;
+  error: string;
 }
 
 export function ProjectSidebar({
@@ -123,6 +150,7 @@ export function ProjectSidebar({
   recentDocuments,
   localDocuments,
   documentsByProject,
+  sessionsByProject = {},
   expandedProjectIds,
   selectedProjectId,
   selectedDocumentId,
@@ -134,28 +162,217 @@ export function ProjectSidebar({
   onSelectDocument,
   onLanguageChange,
   recentSessions,
+  localSessions,
+  sessionStatus = 'active',
   selectedSessionId,
   onSelectSession,
+  onSessionStatusChange,
+  onRenameSession,
+  onArchiveSession,
+  onRestoreSession,
+  onDeleteSession,
+  onCreateSession,
+  sessionActionsDisabled = false,
 }: ProjectSidebarProps) {
   const [localExpanded, setLocalExpanded] = useState(false);
+  const [sessionMenu, setSessionMenu] = useState<SessionMenuState | null>(null);
+  const [renameState, setRenameState] = useState<RenameState | null>(null);
+  const [deletingSession, setDeletingSession] = useState<AnalysisSession | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const restoreMenuFocusRef = useRef(false);
+  const deleteCancelRef = useRef<HTMLButtonElement>(null);
+  const renameFinishedRef = useRef(false);
 
-  // Determine which data to show
-  const hasSessions = recentSessions !== undefined && recentSessions.length > 0;
+  const hasSessions = recentSessions !== undefined;
+  const noProjectSessions =
+    localSessions ??
+    (recentSessions ?? []).filter(
+      (candidate) => !candidate.projectId && candidate.status === sessionStatus,
+    );
 
-  // Derive sessions by project
-  const sessionsByProject = hasSessions
-    ? (recentSessions ?? []).reduce<Record<string, AnalysisSession[]>>((acc, session) => {
-        if (session.projectId) {
-          acc[session.projectId] = acc[session.projectId] ?? [];
-          acc[session.projectId].push(session);
-        }
-        return acc;
-      }, {})
-    : {};
+  useEffect(() => {
+    if (!sessionMenu) return;
 
-  const noProjectSessions = hasSessions
-    ? (recentSessions ?? []).filter((s) => !s.projectId)
-    : [];
+    const closeMenu = (event: MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setSessionMenu(null);
+      }
+    };
+    const closeMenuWithEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSessionMenu(null);
+    };
+
+    menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+    document.addEventListener('mousedown', closeMenu);
+    document.addEventListener('keydown', closeMenuWithEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeMenu);
+      document.removeEventListener('keydown', closeMenuWithEscape);
+    };
+  }, [sessionMenu]);
+
+  useEffect(() => {
+    if (sessionMenu || deletingSession || !restoreMenuFocusRef.current) return;
+    if (menuTriggerRef.current?.isConnected) {
+      menuTriggerRef.current.focus();
+    }
+    restoreMenuFocusRef.current = false;
+  }, [deletingSession, sessionMenu]);
+
+  useEffect(() => {
+    if (!deletingSession) return;
+    deleteCancelRef.current?.focus();
+    const cancelWithEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDeletingSession(null);
+      if (event.key !== 'Tab') return;
+
+      const focusable = Array.from(
+        dialogRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [],
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', cancelWithEscape);
+    return () => document.removeEventListener('keydown', cancelWithEscape);
+  }, [deletingSession]);
+
+  const startRename = useCallback((sessionToRename: AnalysisSession, rowKey: string) => {
+    renameFinishedRef.current = false;
+    setRenameState({
+      session: sessionToRename,
+      rowKey,
+      value: sessionToRename.title,
+      error: '',
+    });
+    setSessionMenu(null);
+  }, []);
+
+  const finishRename = useCallback(() => {
+    if (!renameState || renameFinishedRef.current) return;
+    const title = renameState.value.trim();
+    if (title.length === 0 || title.length > 80) {
+      setRenameState((current) =>
+        current
+          ? {
+              ...current,
+              error:
+                labels.invalidSessionTitle ??
+                'Enter a title between 1 and 80 characters',
+            }
+          : current,
+      );
+      return;
+    }
+
+    renameFinishedRef.current = true;
+    onRenameSession?.(renameState.session.id, title);
+    setRenameState(null);
+  }, [labels.invalidSessionTitle, onRenameSession, renameState]);
+
+  const renderSession = useCallback(
+    (sidebarSession: AnalysisSession, rowKey: string) => {
+      if (renameState?.rowKey === rowKey) {
+        return (
+          <div className={styles.renameRow}>
+            <input
+              className={styles.inlineInput}
+              aria-label={labels.sessionTitle ?? 'Session title'}
+              autoFocus
+              value={renameState.value}
+              onBlur={finishRename}
+              onChange={(event) =>
+                setRenameState((current) =>
+                  current
+                    ? { ...current, value: event.target.value, error: '' }
+                    : current,
+                )
+              }
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  finishRename();
+                } else if (event.key === 'Escape') {
+                  event.preventDefault();
+                  renameFinishedRef.current = true;
+                  setRenameState(null);
+                }
+              }}
+            />
+            {renameState.error ? (
+              <span className={styles.inlineError} role="alert">
+                {renameState.error}
+              </span>
+            ) : null}
+          </div>
+        );
+      }
+
+      const manageLabel = `${labels.manageSession ?? 'Manage session'}: ${sidebarSession.title}`;
+      return (
+        <div
+          className={styles.sessionRow}
+          data-active={sidebarSession.id === selectedSessionId}
+        >
+          <button
+            className={styles.conversationItem}
+            data-active={sidebarSession.id === selectedSessionId}
+            type="button"
+            aria-pressed={sidebarSession.id === selectedSessionId}
+            title={sidebarSession.title}
+            onClick={() => onSelectSession?.(sidebarSession)}
+          >
+            <span className="material-symbols-rounded" aria-hidden="true">
+              {sidebarSession.status === 'archived' ? 'archive' : 'description'}
+            </span>
+            <span>{sidebarSession.title}</span>
+          </button>
+          <button
+            className={styles.sessionMenuTrigger}
+            type="button"
+            aria-label={manageLabel}
+            title={manageLabel}
+            aria-haspopup="menu"
+            aria-expanded={sessionMenu?.rowKey === rowKey}
+            onClick={(event) => {
+              const bounds = event.currentTarget.getBoundingClientRect();
+              const menuWidth = 168;
+              menuTriggerRef.current = event.currentTarget;
+              restoreMenuFocusRef.current = true;
+              setSessionMenu({
+                session: sidebarSession,
+                rowKey,
+                top: bounds.bottom + 4,
+                left: Math.max(8, Math.min(bounds.right - menuWidth, window.innerWidth - menuWidth - 8)),
+              });
+            }}
+          >
+            <span className="material-symbols-rounded" aria-hidden="true">
+              more_vert
+            </span>
+          </button>
+        </div>
+      );
+    },
+    [
+      finishRename,
+      labels.manageSession,
+      labels.sessionTitle,
+      onSelectSession,
+      renameState,
+      selectedSessionId,
+      sessionMenu?.rowKey,
+    ],
+  );
 
   return (
     <aside className={styles.projectSidebar}>
@@ -166,60 +383,78 @@ export function ProjectSidebar({
         <span>{labels.selectDirectory}</span>
       </button>
 
-      <section className={styles.sidebarSection}>
-        <h2>{labels.recentConversations}</h2>
-        <div className={styles.sidebarList}>
-          {hasSessions ? (
-            <SessionList
-              sessions={recentSessions ?? []}
-              selectedSessionId={selectedSessionId}
-              emptyLabel={labels.noConversations}
-              onSelectSession={onSelectSession}
-            />
-          ) : (
-            <ConversationList
-              documents={recentDocuments}
-              selectedDocumentId={selectedDocumentId}
-              emptyLabel={labels.noConversations}
-              onSelectDocument={onSelectDocument}
-            />
-          )}
-        </div>
-      </section>
-
       <section className={`${styles.sidebarSection} ${styles.projectTreeSection}`}>
-        <h2>{labels.projects}</h2>
+        <div className={styles.sidebarSectionHeader}>
+          <h2>{labels.projects}</h2>
+          {hasSessions ? (
+            <div
+              className={styles.sessionStatusControl}
+              role="group"
+              aria-label={labels.sessionStatus ?? 'Session status'}
+            >
+              <button
+                type="button"
+                aria-pressed={sessionStatus === 'active'}
+                onClick={() => onSessionStatusChange?.('active')}
+              >
+                {labels.activeSessions ?? 'Active'}
+              </button>
+              <button
+                type="button"
+                aria-pressed={sessionStatus === 'archived'}
+                onClick={() => onSessionStatusChange?.('archived')}
+              >
+                {labels.archivedSessions ?? 'Archived'}
+              </button>
+            </div>
+          ) : null}
+        </div>
         <div className={styles.projectTree}>
           <div className={styles.folderGroup}>
-            <button
-              className={styles.folderRow}
-              data-active={!selectedProjectId}
-              type="button"
-              aria-expanded={localExpanded}
-              onClick={() => {
-                setLocalExpanded((current) => !current);
-                onSelectLocal();
-              }}
-            >
-              <span className="material-symbols-rounded" aria-hidden="true">
-                {localExpanded ? 'expand_more' : 'chevron_right'}
-              </span>
-              <span className="material-symbols-rounded" aria-hidden="true">
-                {localExpanded ? 'folder_open' : 'folder'}
-              </span>
-              <span>{labels.localDocuments}</span>
-              <span className={styles.folderCount} aria-hidden="true">
-                {hasSessions ? noProjectSessions.length : localDocuments.length}
-              </span>
-            </button>
+            <div className={styles.folderHeaderRow}>
+              <button
+                className={styles.folderRow}
+                data-active={!selectedProjectId}
+                type="button"
+                aria-expanded={localExpanded}
+                onClick={() => {
+                  setLocalExpanded((current) => !current);
+                  onSelectLocal();
+                }}
+              >
+                <span className="material-symbols-rounded" aria-hidden="true">
+                  {localExpanded ? 'expand_more' : 'chevron_right'}
+                </span>
+                <span className="material-symbols-rounded" aria-hidden="true">
+                  {localExpanded ? 'folder_open' : 'folder'}
+                </span>
+                <span>{labels.localDocuments}</span>
+                <span className={styles.folderCount} aria-hidden="true">
+                  {hasSessions ? noProjectSessions.length : localDocuments.length}
+                </span>
+              </button>
+              {hasSessions ? (
+                <button
+                  className={styles.folderCreateSession}
+                  type="button"
+                  aria-label={`${labels.newSession ?? 'New session'}: ${labels.localDocuments}`}
+                  title={`${labels.newSession ?? 'New session'}: ${labels.localDocuments}`}
+                  onClick={() => onCreateSession?.(null)}
+                >
+                  <span className="material-symbols-rounded" aria-hidden="true">
+                    add_comment
+                  </span>
+                </button>
+              ) : null}
+            </div>
             {localExpanded ? (
               <div className={styles.folderChildren}>
                 {hasSessions ? (
                   <SessionList
                     sessions={noProjectSessions}
-                    selectedSessionId={selectedSessionId}
                     emptyLabel={labels.noConversations}
-                    onSelectSession={onSelectSession}
+                    listKey={`local-${sessionStatus}`}
+                    renderSession={renderSession}
                   />
                 ) : (
                   <ConversationList
@@ -241,35 +476,56 @@ export function ProjectSidebar({
               const projectSessions = sessionsByProject[project.id] ?? [];
               const projectDocuments = documentsByProject[project.id] ?? [];
               return (
-                <div className={styles.folderGroup} key={project.id}>
-                  <button
-                    className={styles.folderRow}
-                    data-active={project.id === selectedProjectId}
-                    type="button"
-                    aria-expanded={expanded}
-                    onClick={() => onToggleProject(project)}
-                  >
-                    <span className="material-symbols-rounded" aria-hidden="true">
-                      {expanded ? 'expand_more' : 'chevron_right'}
-                    </span>
-                    <span className="material-symbols-rounded" aria-hidden="true">
-                      {expanded ? 'folder_open' : 'folder'}
-                    </span>
-                    <span>{project.name}</span>
-                    <span className={styles.folderCount} aria-hidden="true">
-                      {hasSessions
-                        ? (project.conversationCount ?? projectSessions.length)
-                        : (project.conversationCount ?? projectDocuments.length)}
-                    </span>
-                  </button>
+                <div
+                  className={styles.folderGroup}
+                  key={project.id}
+                  data-testid={`project-${project.id}`}
+                >
+                  <div className={styles.folderHeaderRow}>
+                    <button
+                      className={styles.folderRow}
+                      data-active={project.id === selectedProjectId}
+                      type="button"
+                      aria-expanded={expanded}
+                      onClick={() => onToggleProject(project)}
+                    >
+                      <span className="material-symbols-rounded" aria-hidden="true">
+                        {expanded ? 'expand_more' : 'chevron_right'}
+                      </span>
+                      <span className="material-symbols-rounded" aria-hidden="true">
+                        {expanded ? 'folder_open' : 'folder'}
+                      </span>
+                      <span>{project.name}</span>
+                      <span className={styles.folderCount} aria-hidden="true">
+                        {hasSessions
+                          ? sessionStatus === 'active'
+                            ? (project.conversationCount ?? projectSessions.length)
+                            : (project.archivedConversationCount ?? projectSessions.length)
+                          : (project.conversationCount ?? projectDocuments.length)}
+                      </span>
+                    </button>
+                    {hasSessions ? (
+                      <button
+                        className={styles.folderCreateSession}
+                        type="button"
+                        aria-label={`${labels.newSession ?? 'New session'}: ${project.name}`}
+                        title={`${labels.newSession ?? 'New session'}: ${project.name}`}
+                        onClick={() => onCreateSession?.(project.id)}
+                      >
+                        <span className="material-symbols-rounded" aria-hidden="true">
+                          add_comment
+                        </span>
+                      </button>
+                    ) : null}
+                  </div>
                   {expanded ? (
                     <div className={styles.folderChildren}>
                       {hasSessions ? (
                         <SessionList
                           sessions={projectSessions}
-                          selectedSessionId={selectedSessionId}
                           emptyLabel={labels.noConversations}
-                          onSelectSession={onSelectSession}
+                          listKey={`project-${project.id}-${sessionStatus}`}
+                          renderSession={renderSession}
                         />
                       ) : (
                         <ConversationList
@@ -288,6 +544,27 @@ export function ProjectSidebar({
         </div>
       </section>
 
+      <section className={styles.sidebarSection}>
+        <h2>{labels.recentConversations}</h2>
+        <div className={styles.sidebarList}>
+          {hasSessions ? (
+            <SessionList
+              sessions={recentSessions ?? []}
+              emptyLabel={labels.noConversations}
+              listKey="recent"
+              renderSession={renderSession}
+            />
+          ) : (
+            <ConversationList
+              documents={recentDocuments}
+              selectedDocumentId={selectedDocumentId}
+              emptyLabel={labels.noConversations}
+              onSelectDocument={onSelectDocument}
+            />
+          )}
+        </div>
+      </section>
+
       <label className={styles.languageControl}>
         <span>{labels.language}</span>
         <select
@@ -299,6 +576,107 @@ export function ProjectSidebar({
           <option value="en-US">{labels.english}</option>
         </select>
       </label>
+
+      {sessionMenu ? (
+        <div
+          className={styles.contextMenu}
+          ref={menuRef}
+          role="menu"
+          style={{ position: 'fixed', top: sessionMenu.top, left: sessionMenu.left, zIndex: 1000 }}
+        >
+          {sessionMenu.session.status === 'active' ? (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => startRename(sessionMenu.session, sessionMenu.rowKey)}
+              >
+                {labels.renameSession ?? 'Rename'}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={
+                  sessionActionsDisabled &&
+                  sessionMenu.session.id === selectedSessionId
+                }
+                onClick={() => {
+                  onArchiveSession?.(sessionMenu.session.id);
+                  setSessionMenu(null);
+                }}
+              >
+                {labels.archiveSession ?? 'Archive'}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onRestoreSession?.(sessionMenu.session.id);
+                setSessionMenu(null);
+              }}
+            >
+              {labels.restoreSession ?? 'Restore'}
+            </button>
+          )}
+          <button
+            type="button"
+            role="menuitem"
+            data-variant="danger"
+            disabled={
+              sessionActionsDisabled &&
+              sessionMenu.session.id === selectedSessionId
+            }
+            onClick={() => {
+              setDeletingSession(sessionMenu.session);
+              setSessionMenu(null);
+            }}
+          >
+            {labels.deleteSession ?? 'Delete'}
+          </button>
+        </div>
+      ) : null}
+
+      {deletingSession ? (
+        <div className={styles.dialogBackdrop}>
+          <div
+            className={styles.confirmDialog}
+            ref={dialogRef}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-session-title"
+            aria-describedby="delete-session-description"
+          >
+            <p id="delete-session-title">
+              {labels.confirmDelete ?? 'Delete permanently'}: {deletingSession.title}
+            </p>
+            <p className={styles.dialogDescription} id="delete-session-description">
+              {labels.deleteSessionWarning ??
+                'This permanently deletes the session and all related data.'}
+            </p>
+            <div className={styles.confirmActions}>
+              <button
+                ref={deleteCancelRef}
+                type="button"
+                onClick={() => setDeletingSession(null)}
+              >
+                {labels.cancel ?? 'Cancel'}
+              </button>
+              <button
+                type="button"
+                data-variant="danger"
+                onClick={() => {
+                  onDeleteSession?.(deletingSession.id);
+                  setDeletingSession(null);
+                }}
+              >
+                {labels.confirmDelete ?? 'Delete permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </aside>
   );
 }
