@@ -9,6 +9,7 @@ import type {
   AnalysisTurn,
   CodeAnalysisAnnotationCreatePayload,
   CodeAnalysisAnnotationData,
+  CodeAnalysisDeleteAnnotationPayload,
   CodeAnalysisCheckoutTurnPayload,
   CodeAnalysisDeleteSessionPayload,
   CodeAnalysisDiscussionMessageData,
@@ -165,6 +166,14 @@ export function registerCodeAnalysisHandlers(deps: CodeAnalysisHandlerDeps): voi
         }
         return deps.analysisAnnotationService.listMessages(annotationId);
       }),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_DELETE_ANNOTATION,
+    async (_event, payload: CodeAnalysisDeleteAnnotationPayload): Promise<IPCResult<void>> =>
+      handle('codeAnalysis:deleteAnnotation', () =>
+        deps.analysisAnnotationService.delete(payload.annotationId),
+      ),
   );
 
   ipcMain.handle(

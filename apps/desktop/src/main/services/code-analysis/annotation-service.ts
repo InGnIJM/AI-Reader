@@ -191,4 +191,18 @@ export class AnalysisAnnotationService {
       )
       .all(annotationId) as AnalysisDiscussionMessage[];
   }
+
+  /**
+   * Deletes an annotation and its discussion messages (cascaded via the
+   * `analysis_discussion_messages.annotation_id` foreign key). Throws when the
+   * annotation does not exist.
+   */
+  async delete(id: string): Promise<void> {
+    const result = this.db.db
+      .prepare('DELETE FROM analysis_annotations WHERE id = ?')
+      .run(id);
+    if (result.changes === 0) {
+      throw new Error(`Annotation not found: ${id}`);
+    }
+  }
 }

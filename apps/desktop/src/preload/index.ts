@@ -233,6 +233,8 @@ const api = {
         IPC_CHANNELS.CODE_ANALYSIS_REPLY_TO_ANNOTATION,
         annotationId,
       ),
+    deleteAnnotation: (annotationId: string) =>
+      invoke<void>(IPC_CHANNELS.CODE_ANALYSIS_DELETE_ANNOTATION, { annotationId }),
     exportDocument: (documentId: string, format: AnalysisExportFormat) =>
       invoke<AnalysisExportArtifact>(
         IPC_CHANNELS.CODE_ANALYSIS_EXPORT_DOCUMENT,
