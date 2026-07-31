@@ -346,6 +346,28 @@
   color: #bfdbfe;
 }
 
+.annotationActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.deleteAnnotationBtn {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.deleteAnnotationBtn:hover {
+  color: #f87171;
+}
+
 .annotationReply {
   --md-sys-color-primary: #93c5fd;
   --md-sys-color-on-surface: #e2e8f0;

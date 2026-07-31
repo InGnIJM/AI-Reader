@@ -29,6 +29,8 @@ export interface AnnotationSidebarProps {
   activeAnnotationId?: string;
   onActivate?: (annotationId: string) => void;
   onViewSource?: (annotationId: string) => void;
+  /** Called when the user deletes an annotation. */
+  onDelete?: (annotationId: string) => void;
   /** Label for the "view source" affordance; defaults to a hardcoded Chinese label. */
   viewSourceLabel?: string;
   emptyLabel?: string;
@@ -40,6 +42,7 @@ export function AnnotationSidebar({
   activeAnnotationId,
   onActivate,
   onViewSource,
+  onDelete,
   viewSourceLabel,
   emptyLabel = 'No comments yet.',
   statusLabels,
@@ -151,17 +154,36 @@ export function AnnotationSidebar({
                         <MarkdownRenderer content={message.content} />
                       </div>
                     ))}
-                  {onViewSource && (
-                    <button
-                      type="button"
-                      className={styles.viewSourceBtn}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onViewSource(annotation.id);
-                      }}
-                    >
-                      {viewSourceLabel ?? '查看原文'}
-                    </button>
+                  {(onViewSource || onDelete) && (
+                    <div className={styles.annotationActions}>
+                      {onViewSource && (
+                        <button
+                          type="button"
+                          className={styles.viewSourceBtn}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onViewSource(annotation.id);
+                          }}
+                        >
+                          {viewSourceLabel ?? '查看原文'}
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button
+                          type="button"
+                          className={styles.deleteAnnotationBtn}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete(annotation.id);
+                          }}
+                          aria-label="删除批注"
+                          title="删除批注"
+                          data-testid={`annotation-delete-${annotation.id}`}
+                        >
+                          <span className="material-symbols-rounded">close</span>
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               )}

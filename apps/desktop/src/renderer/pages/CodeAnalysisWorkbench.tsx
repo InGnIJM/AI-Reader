@@ -119,6 +119,21 @@ export default function CodeAnalysisWorkbench() {
     setActiveAnnotationId(annotationId);
     focusAnnotationMark(annotationId);
   }, []);
+
+  const handleDeleteAnnotation = useCallback(
+    async (annotationId: string) => {
+      try {
+        await window.api.codeAnalysis.deleteAnnotation(annotationId);
+        setAnnotations((current) => current.filter((item) => item.id !== annotationId));
+        setActiveAnnotationId((current) => (current === annotationId ? undefined : current));
+      } catch (error) {
+        setStatus(
+          error instanceof Error ? error.message : codeAnalysisText[language].analysisFailed,
+        );
+      }
+    },
+    [language],
+  );
   const [selectedText, setSelectedText] = useState('');
   const [selectedSourceRange, setSelectedSourceRange] =
     useState<SourceSelectionRange | undefined>();
@@ -1167,6 +1182,7 @@ export default function CodeAnalysisWorkbench() {
           activeAnnotationId={activeAnnotationId}
           onActivate={setActiveAnnotationId}
           onViewSource={handleViewSource}
+          onDelete={handleDeleteAnnotation}
           viewSourceLabel={text.viewSource}
           emptyLabel={text.noComments}
           statusLabels={{
