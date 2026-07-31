@@ -71,6 +71,13 @@ export class AnalysisAnnotationService {
     } else if (start < 0) {
       throw new Error('Selected text not found in analysis document');
     }
+    log.info(
+      `createAnnotation: selected=${JSON.stringify(input.selectedText)} ` +
+        `inputOffsets=${input.sourceStartOffset ?? '-'},${input.sourceEndOffset ?? '-'} ` +
+        `resolved=${start},${end} ` +
+        `substring=${JSON.stringify(doc.contentMarkdown.substring(start, end))} ` +
+        `contentLength=${doc.contentMarkdown.length}`,
+    );
     const anchorExactText = doc.contentMarkdown.substring(start, end);
     const id = randomUUID();
     const now = new Date().toISOString();
