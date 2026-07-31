@@ -64,6 +64,8 @@ export const IPC_CHANNELS = {
   /** 打开文件选择对话框 */
   DIALOG_OPEN_FILE: 'dialog:openFile',
   DIALOG_OPEN_DIRECTORY: 'dialog:openDirectory',
+  /** 保存文件（弹出保存对话框并写入磁盘） */
+  DIALOG_SAVE_FILE: 'dialog:saveFile',
 
   CODE_ANALYSIS_CREATE_PROJECT: 'codeAnalysis:createProject',
   CODE_ANALYSIS_LIST_PROJECTS: 'codeAnalysis:listProjects',
@@ -88,9 +90,10 @@ export const IPC_CHANNELS = {
   CODE_ANALYSIS_LIST_ANNOTATIONS: 'codeAnalysis:listAnnotations',
   CODE_ANALYSIS_LIST_ANNOTATION_MESSAGES: 'codeAnalysis:listAnnotationMessages',
   CODE_ANALYSIS_REPLY_TO_ANNOTATION: 'codeAnalysis:replyToAnnotation',
-  CODE_ANALYSIS_EXPORT_MARKDOWN: 'codeAnalysis:exportMarkdown',
-  CODE_ANALYSIS_EXPORT_JSON: 'codeAnalysis:exportJson',
-  CODE_ANALYSIS_IMPORT_JSON: 'codeAnalysis:importJson',
+  /** 按格式导出分析文档（生成内容制品） */
+  CODE_ANALYSIS_EXPORT_DOCUMENT: 'codeAnalysis:exportDocument',
+  /** 按格式导入分析文档（自动识别 payload 类型） */
+  CODE_ANALYSIS_IMPORT_DOCUMENT: 'codeAnalysis:importDocument',
 } as const;
 
 /** IPC 频道名称联合类型 */

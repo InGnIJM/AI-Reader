@@ -147,6 +147,25 @@ export interface OpenDirectoryDialogResult {
   filePaths: string[];
 }
 
+/** 保存对话框的扩展名过滤器 */
+export interface SaveFileFilter {
+  name: string;
+  extensions: string[];
+}
+
+/** 保存文件请求参数 */
+export interface SaveFilePayload {
+  defaultFileName: string;
+  content: string;
+  filters?: SaveFileFilter[];
+}
+
+/** 保存文件结果 */
+export interface SaveFileResult {
+  canceled: boolean;
+  filePath: string | null;
+}
+
 export type CodeAnalysisStatus = 'pending' | 'running' | 'completed' | 'failed';
 export type CodeAnalysisAnnotationStatus = 'pending' | 'answered' | 'failed';
 export type CodeAnalysisMessageRole = 'user' | 'assistant';
@@ -262,6 +281,7 @@ export interface CodeAnalysisRunPayload {
 
 export interface CodeAnalysisDocumentData {
   id: string;
+  projectId: string | null;
   goal: string;
   contentMarkdown: string;
   status: CodeAnalysisStatus;
@@ -325,4 +345,14 @@ export interface CodeAnalysisDiscussionMessageData {
   content: string;
   modelId?: string;
   createdAt: string;
+}
+
+/** 支持的导出格式（新增格式时在此扩展） */
+export type AnalysisExportFormat = 'markdown' | 'json';
+
+/** 导出内容制品：统一的「文件名 + 内容」结构，供通用保存通道落盘 */
+export interface AnalysisExportArtifact {
+  format: AnalysisExportFormat;
+  defaultFileName: string;
+  content: string;
 }
