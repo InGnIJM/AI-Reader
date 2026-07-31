@@ -4,10 +4,95 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { DatabaseClient } from '../../../db/client';
+import { createDatabase, type DatabaseClient } from '../../../db/client';
 import { CodeAnalysisService } from '../service';
 
 describe('CodeAnalysisService list APIs', () => {
+  it('counts active project sessions instead of analysis turns', async () => {
+    const db = createDatabase(':memory:');
+    const now = '2026-07-30T00:00:00.000Z';
+
+    try {
+      db.db
+        .prepare(
+          `INSERT INTO code_projects
+             (id, name, root_path, root_path_hash, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run('project-count', 'Count project', 'E:/count', 'count-hash', now, now);
+      db.db
+        .prepare(
+          `INSERT INTO analysis_sessions
+             (id, project_id, title, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run('session-active', 'project-count', 'Active session', 'active', now, now);
+      db.db
+        .prepare(
+          `INSERT INTO analysis_sessions
+             (id, project_id, title, status, archived_at, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run('session-archived', 'project-count', 'Archived session', 'archived', now, now, now);
+      db.db
+        .prepare(
+          `INSERT INTO analysis_branches
+             (id, session_id, name, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run('branch-active', 'session-active', 'Main', now, now);
+      const insertDocument = db.db.prepare(
+        `INSERT INTO analysis_documents
+           (id, session_id, branch_id, goal, content_markdown, status,
+            tool_call_count, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      );
+      insertDocument.run(
+        'document-turn-1',
+        'session-active',
+        'branch-active',
+        'First turn',
+        '# First',
+        'completed',
+        0,
+        now,
+        now,
+      );
+      insertDocument.run(
+        'document-turn-2',
+        'session-active',
+        'branch-active',
+        'Second turn',
+        '# Second',
+        'completed',
+        0,
+        now,
+        now,
+      );
+
+      const service = new CodeAnalysisService({
+        db,
+        llm: {} as LLMProvider,
+        projectPathHash: () => 'count-hash',
+      });
+
+      await expect(service.listProjects()).resolves.toEqual([
+        expect.objectContaining({
+          id: 'project-count',
+          conversationCount: 1,
+        }),
+      ]);
+      await expect(service.createProject('E:/count')).resolves.toEqual(
+        expect.objectContaining({
+          id: 'project-count',
+          conversationCount: 1,
+        }),
+      );
+    } finally {
+      db.close();
+    }
+  });
+
   it('reuses a project when the selected directory resolves to the same normalized path', async () => {
     const existing = {
       id: 'project-existing',
