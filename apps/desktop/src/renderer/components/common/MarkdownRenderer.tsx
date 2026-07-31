@@ -14,6 +14,11 @@ interface TextSegment {
   sourceEnd: number;
 }
 
+export interface SourceSelectionRange {
+  sourceStartOffset: number;
+  sourceEndOffset: number;
+}
+
 /**
  * Annotation definition with source offsets.
  */
@@ -30,7 +35,7 @@ export interface MarkdownRendererProps {
   /** Markdown source content to render */
   content: string;
   /** Called when the user selects text via mouse. Receives the trimmed selected text and the DOM Range. */
-  onTextSelect?: (text: string, range: Range) => void;
+  onTextSelect?: (text: string, range: Range, sourceRange?: SourceSelectionRange) => void;
   /**
    * Function that maps heading text to a DOM id for scroll navigation.
    * When provided, each heading element receives an `id` attribute.
@@ -45,6 +50,76 @@ export interface MarkdownRendererProps {
   activeAnnotationId?: string;
   /** Called when an annotation mark is clicked or activated via keyboard. */
   onAnnotationClick?: (annotationId: string) => void;
+}
+
+function mapRenderedOffsetToSource(
+  renderedOffset: number,
+  segments: TextSegment[],
+  boundary: 'start' | 'end',
+): number | null {
+  for (const segment of segments) {
+    const isInside =
+      boundary === 'start'
+        ? renderedOffset >= segment.renderedStart && renderedOffset < segment.renderedEnd
+        : renderedOffset > segment.renderedStart && renderedOffset <= segment.renderedEnd;
+    if (isInside) {
+      return segment.sourceStart + renderedOffset - segment.renderedStart;
+    }
+  }
+  return null;
+}
+
+function getRenderedOffset(container: HTMLElement, node: Node, offset: number): number {
+  // Measure plain-text length (no block boundaries) up to the (node, offset)
+  // boundary, matching the segment space built by buildSourceMapping.
+  // Range.toString() cannot be used here: Chromium inserts '\n' at block-level
+  // boundaries while jsdom does not, so it would diverge from segment offsets.
+  // Boundary point the walker must stop before.
+  const targetBoundary = document.createRange();
+  targetBoundary.setStart(node, offset);
+
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let total = 0;
+  let current: Node | null = walker.nextNode();
+  while (current) {
+    const text = current.textContent ?? '';
+    if (current === node) {
+      const clamped = offset < 0 ? 0 : offset > text.length ? text.length : offset;
+      return total + clamped;
+    }
+    // ReactMarkdown emits whitespace-only text nodes between block elements;
+    // they are not part of the markdown content and must not shift offsets.
+    if (text.trim() === '') {
+      current = walker.nextNode();
+      continue;
+    }
+    const textEnd = document.createRange();
+    textEnd.setStart(current, text.length);
+    if (textEnd.compareBoundaryPoints(Range.END_TO_END, targetBoundary) > 0) break;
+    total += text.length;
+    current = walker.nextNode();
+  }
+  return total;
+}
+
+function resolveSourceSelectionRange(
+  container: HTMLElement,
+  range: Range,
+  rawSelectedText: string,
+  segments: TextSegment[],
+): SourceSelectionRange | undefined {
+  const leadingWhitespace = rawSelectedText.length - rawSelectedText.trimStart().length;
+  const trailingWhitespace = rawSelectedText.length - rawSelectedText.trimEnd().length;
+  const renderedStart =
+    getRenderedOffset(container, range.startContainer, range.startOffset) + leadingWhitespace;
+  const renderedEnd =
+    getRenderedOffset(container, range.endContainer, range.endOffset) - trailingWhitespace;
+  const sourceStartOffset = mapRenderedOffsetToSource(renderedStart, segments, 'start');
+  const sourceEndOffset = mapRenderedOffsetToSource(renderedEnd, segments, 'end');
+
+  if (sourceStartOffset === null || sourceEndOffset === null) return undefined;
+  if (sourceStartOffset >= sourceEndOffset) return undefined;
+  return { sourceStartOffset, sourceEndOffset };
 }
 
 // ---------------------------------------------------------------------------
@@ -108,7 +183,8 @@ function buildSourceMapping(tree: any, content: string): TextSegment[] {
       }
       renderedOffset += text.length;
     } else if (node.type === 'break') {
-      renderedOffset += 1;
+      // `<br>` contributes no text in plain-text offset space (TreeWalker and
+      // annotateChildren both ignore it), so it must not advance the counter.
     } else if (node.children && Array.isArray(node.children)) {
       for (const child of node.children) {
         walk(child);
@@ -470,6 +546,7 @@ export function MarkdownRenderer({
 }: MarkdownRendererProps) {
   const segmentsRef = useRef<TextSegment[]>([]);
   const positionRef = useRef(0);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Reset the global rendered-text position counter at the start of each render.
   // Components are rendered in document order, so this gives correct global offsets.
@@ -500,16 +577,27 @@ export function MarkdownRenderer({
     const selection = window.getSelection();
     if (!selection) return;
 
-    const selectedText = selection.toString().trim();
+    const rawSelectedText = selection.toString();
+    const selectedText = rawSelectedText.trim();
     if (!selectedText) return;
 
     if (selection.rangeCount > 0) {
-      onTextSelect(selectedText, selection.getRangeAt(0));
+      const range = selection.getRangeAt(0);
+      const sourceRange = containerRef.current
+        ? resolveSourceSelectionRange(
+            containerRef.current,
+            range,
+            rawSelectedText,
+            segmentsRef.current,
+          )
+        : undefined;
+      onTextSelect(selectedText, range, sourceRange);
     }
   }, [onTextSelect]);
 
   return (
     <div
+      ref={containerRef}
       className={styles.container}
       onMouseUp={handleMouseUp}
       data-testid="markdown-renderer"

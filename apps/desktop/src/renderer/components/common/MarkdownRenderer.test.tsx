@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup, within } from '@testing-library/react';
+import { render, screen, cleanup, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { MarkdownRenderer } from './MarkdownRenderer';
@@ -93,7 +93,8 @@ describe('MarkdownRenderer', () => {
       const mockRange = document.createRange();
       const textNode = container.querySelector('p')?.firstChild;
       if (textNode) {
-        mockRange.selectNodeContents(textNode);
+        mockRange.setStart(textNode, 0);
+        mockRange.setEnd(textNode, 5);
       }
 
       const mockSelection = {
@@ -107,7 +108,11 @@ describe('MarkdownRenderer', () => {
       const contentDiv = container.firstChild as HTMLElement;
       contentDiv.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
 
-      expect(onTextSelect).toHaveBeenCalledWith('Hello', mockRange);
+      expect(onTextSelect).toHaveBeenCalledWith(
+        'Hello',
+        mockRange,
+        { sourceStartOffset: 0, sourceEndOffset: 5 },
+      );
     });
 
     it('should not call onTextSelect when selection is empty', () => {
@@ -430,6 +435,32 @@ describe('MarkdownRenderer', () => {
   });
 
   describe('source mapping across inline elements', () => {
+    it('should include source offsets when selecting link text', () => {
+      const onTextSelect = vi.fn();
+      const { container } = render(
+        <MarkdownRenderer
+          content="Click [here](http://x.com) now"
+          onTextSelect={onTextSelect}
+        />,
+      );
+      const link = container.querySelector('a')!;
+      const range = document.createRange();
+      range.selectNodeContents(link);
+      vi.spyOn(window, 'getSelection').mockReturnValue({
+        toString: () => 'here',
+        rangeCount: 1,
+        getRangeAt: () => range,
+      } as unknown as Selection);
+
+      fireEvent.mouseUp(container.querySelector('[data-testid="markdown-renderer"]')!);
+
+      expect(onTextSelect).toHaveBeenCalledWith(
+        'here',
+        range,
+        { sourceStartOffset: 7, sourceEndOffset: 11 },
+      );
+    });
+
     it('should correctly annotate text within inline code', () => {
       // "Use `code` here"
       // source: U=0 s=1 e=2 ' '=3 '=4 c=5 o=6 d=7 e=8 '=9 ' '=10 h=11 e=12 r=13 e=14
@@ -494,6 +525,87 @@ describe('MarkdownRenderer', () => {
       const marks = container.querySelectorAll('mark[data-annotation-ids]');
       expect(marks).toHaveLength(1);
       expect(marks[0]).toHaveTextContent('ital');
+    });
+  });
+
+  describe('source mapping across blocks', () => {
+    // "# Title\n\nSome paragraph here."
+    // source: #=0 ' '=1 T=2 i=3 t=4 l=5 e=6 \n=7 \n=8 S=9 o=10 m=11 e=12 ' '=13
+    //         p=14 a=15 r=16 a=17 g=18 r=19 a=20 p=21 h=22 ' '=23 e=24 r=25 e=26 .=27
+    const multiBlockContent = '# Title\n\nSome paragraph here.';
+
+    it('should map a selection inside a later block to the correct source offsets', () => {
+      const onTextSelect = vi.fn();
+      const { container } = render(
+        <MarkdownRenderer content={multiBlockContent} onTextSelect={onTextSelect} />,
+      );
+      const secondBlockText = container.querySelector('p')!.firstChild as Text;
+      const range = document.createRange();
+      range.setStart(secondBlockText, 5); // after "Some "
+      range.setEnd(secondBlockText, 14); // after "paragraph"
+      vi.spyOn(window, 'getSelection').mockReturnValue({
+        toString: () => 'paragraph',
+        rangeCount: 1,
+        getRangeAt: () => range,
+      } as unknown as Selection);
+
+      fireEvent.mouseUp(container.querySelector('[data-testid="markdown-renderer"]')!);
+
+      expect(onTextSelect).toHaveBeenCalledWith('paragraph', range, {
+        sourceStartOffset: 14,
+        sourceEndOffset: 23,
+      });
+    });
+
+    it('should map a selection that spans two blocks to a contiguous source range', () => {
+      const onTextSelect = vi.fn();
+      const { container } = render(
+        <MarkdownRenderer content={multiBlockContent} onTextSelect={onTextSelect} />,
+      );
+      const titleText = container.querySelector('h1')!.firstChild as Text;
+      const secondBlockText = container.querySelector('p')!.firstChild as Text;
+      const range = document.createRange();
+      range.setStart(titleText, 0);
+      range.setEnd(secondBlockText, 4); // after "Some"
+      vi.spyOn(window, 'getSelection').mockReturnValue({
+        toString: () => 'Title\n\nSome',
+        rangeCount: 1,
+        getRangeAt: () => range,
+      } as unknown as Selection);
+
+      fireEvent.mouseUp(container.querySelector('[data-testid="markdown-renderer"]')!);
+
+      expect(onTextSelect).toHaveBeenCalledWith('Title\n\nSome', range, {
+        sourceStartOffset: 2,
+        sourceEndOffset: 13,
+      });
+    });
+
+    it('should map an element-node boundary selection inside a later block', () => {
+      const onTextSelect = vi.fn();
+      const { container } = render(
+        <MarkdownRenderer
+          content={'# Title\n\nA [link](http://x.com) tail'}
+          onTextSelect={onTextSelect}
+        />,
+      );
+      const link = container.querySelector('a')!;
+      const range = document.createRange();
+      range.selectNodeContents(link);
+      vi.spyOn(window, 'getSelection').mockReturnValue({
+        toString: () => 'link',
+        rangeCount: 1,
+        getRangeAt: () => range,
+      } as unknown as Selection);
+
+      fireEvent.mouseUp(container.querySelector('[data-testid="markdown-renderer"]')!);
+
+      // source: '# Title\n\nA [link](http://x.com) tail'
+      //          #=0 ' '=1 T=2..e=6 \n=7 \n=8 A=9 ' '=10 [=11 l=12 i=13 n=14 k=15 ]=16
+      expect(onTextSelect).toHaveBeenCalledWith('link', range, {
+        sourceStartOffset: 12,
+        sourceEndOffset: 16,
+      });
     });
   });
 });
