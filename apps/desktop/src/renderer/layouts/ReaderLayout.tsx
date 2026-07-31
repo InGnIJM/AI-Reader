@@ -35,17 +35,13 @@ export default function ReaderLayout({
   }, []);
 
   const handleImport = useCallback(async () => {
-    console.log('[handleImport] clicked, importing=', importing);
-    console.log('[handleImport] window.api=', window.api);
 
     if (importing) return;
     setImporting(true);
 
     try {
       // 1. 打开文件对话框
-      console.log('[handleImport] opening dialog...');
       const dialogResult = await window.api.dialog.openFile();
-      console.log('[handleImport] dialog result:', dialogResult);
 
       if (dialogResult.canceled || !dialogResult.fileContents?.length) {
         return;

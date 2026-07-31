@@ -11,7 +11,6 @@ import { contextBridge, ipcRenderer } from 'electron';
 let IPC_CHANNELS: any;
 try {
   IPC_CHANNELS = require('@ai-reader/shared').IPC_CHANNELS;
-  console.log('[preload] IPC_CHANNELS loaded:', IPC_CHANNELS);
 } catch (err) {
   console.error('[preload] Failed to load @ai-reader/shared:', err);
   // 使用硬编码的通道名称作为后备（与 IPC_CHANNELS 定义一致）
@@ -41,6 +40,7 @@ try {
     ANNOTATION_DELETE: 'annotation:delete',
     DIALOG_OPEN_FILE: 'dialog:openFile',
     DIALOG_OPEN_DIRECTORY: 'dialog:openDirectory',
+    DIALOG_SAVE_FILE: 'dialog:saveFile',
     CODE_ANALYSIS_CREATE_PROJECT: 'codeAnalysis:createProject',
     CODE_ANALYSIS_LIST_PROJECTS: 'codeAnalysis:listProjects',
     CODE_ANALYSIS_RUN: 'codeAnalysis:run',
@@ -52,9 +52,8 @@ try {
     CODE_ANALYSIS_LIST_ANNOTATIONS: 'codeAnalysis:listAnnotations',
     CODE_ANALYSIS_LIST_ANNOTATION_MESSAGES: 'codeAnalysis:listAnnotationMessages',
     CODE_ANALYSIS_REPLY_TO_ANNOTATION: 'codeAnalysis:replyToAnnotation',
-    CODE_ANALYSIS_EXPORT_MARKDOWN: 'codeAnalysis:exportMarkdown',
-    CODE_ANALYSIS_EXPORT_JSON: 'codeAnalysis:exportJson',
-    CODE_ANALYSIS_IMPORT_JSON: 'codeAnalysis:importJson',
+    CODE_ANALYSIS_EXPORT_DOCUMENT: 'codeAnalysis:exportDocument',
+    CODE_ANALYSIS_IMPORT_DOCUMENT: 'codeAnalysis:importDocument',
     CODE_ANALYSIS_LIST_SESSIONS: 'codeAnalysis:listSessions',
     CODE_ANALYSIS_LIST_RECENT_SESSIONS: 'codeAnalysis:listRecentSessions',
     CODE_ANALYSIS_GET_SESSION: 'codeAnalysis:getSession',
@@ -72,6 +71,8 @@ try {
 
 import type {
   AnalysisBranch,
+  AnalysisExportArtifact,
+  AnalysisExportFormat,
   AnalysisSession,
   AnalysisSessionDetail,
   AnalysisTurn,
@@ -88,6 +89,8 @@ import type {
   JobMarkFailedPayload,
   OpenFileDialogResult,
   OpenDirectoryDialogResult,
+  SaveFilePayload,
+  SaveFileResult,
   AnnotationCreatePayload,
   AnnotationData,
   CodeAnalysisAnnotationCreatePayload,
@@ -194,6 +197,8 @@ const api = {
       invoke<OpenFileDialogResult>(IPC_CHANNELS.DIALOG_OPEN_FILE),
     openDirectory: () =>
       invoke<OpenDirectoryDialogResult>(IPC_CHANNELS.DIALOG_OPEN_DIRECTORY),
+    saveFile: (payload: SaveFilePayload) =>
+      invoke<SaveFileResult>(IPC_CHANNELS.DIALOG_SAVE_FILE, payload),
   },
 
   codeAnalysis: {
@@ -228,12 +233,14 @@ const api = {
         IPC_CHANNELS.CODE_ANALYSIS_REPLY_TO_ANNOTATION,
         annotationId,
       ),
-    exportMarkdown: (documentId: string) =>
-      invoke<string>(IPC_CHANNELS.CODE_ANALYSIS_EXPORT_MARKDOWN, documentId),
-    exportJson: (documentId: string) =>
-      invoke<unknown>(IPC_CHANNELS.CODE_ANALYSIS_EXPORT_JSON, documentId),
-    importJson: (payload: unknown) =>
-      invoke<CodeAnalysisDocumentData>(IPC_CHANNELS.CODE_ANALYSIS_IMPORT_JSON, payload),
+    exportDocument: (documentId: string, format: AnalysisExportFormat) =>
+      invoke<AnalysisExportArtifact>(
+        IPC_CHANNELS.CODE_ANALYSIS_EXPORT_DOCUMENT,
+        documentId,
+        format,
+      ),
+    importDocument: (payload: unknown) =>
+      invoke<CodeAnalysisDocumentData>(IPC_CHANNELS.CODE_ANALYSIS_IMPORT_DOCUMENT, payload),
 
     // ── Session management ──────────────────────────────────────────────────
     listSessions: (payload: CodeAnalysisListSessionsPayload) =>
