@@ -7,10 +7,10 @@
 }
 
 .projectSidebar {
-  display: flex;
+  display: grid;
   min-height: 0;
   flex: 1;
-  flex-direction: column;
+  grid-template-rows: auto minmax(0, 3fr) minmax(0, 2fr) auto;
   gap: 18px;
 }
 
@@ -53,8 +53,42 @@
   font-weight: 700;
 }
 
+.sidebarSectionHeader {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sessionStatusControl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid #334155;
+  border-radius: 8px;
+}
+
+.projectSidebar .sessionStatusControl button {
+  min-height: 26px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 2px 8px;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.projectSidebar .sessionStatusControl button + button {
+  border-left: 1px solid #334155;
+}
+
+.projectSidebar .sessionStatusControl button[aria-pressed='true'] {
+  background: #334155;
+  color: #f8fafc;
+}
+
 .projectTreeSection {
-  flex: 1;
   min-height: 0;
 }
 
@@ -73,6 +107,34 @@
 
 .folderGroup {
   min-width: 0;
+}
+
+.folderHeaderRow {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  align-items: center;
+}
+
+.projectSidebar .folderCreateSession {
+  display: grid;
+  width: 32px;
+  min-height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #94a3b8;
+  padding: 0;
+}
+
+.projectSidebar .folderCreateSession:hover {
+  background: #1e293b;
+  color: #f8fafc;
+}
+
+.folderCreateSession .material-symbols-rounded {
+  font-size: 18px;
 }
 
 .projectSidebar .folderRow,
@@ -98,6 +160,47 @@
   min-height: 38px;
   gap: 7px;
   padding: 7px 10px;
+}
+
+.sessionRow {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+
+.sessionRow .conversationItem {
+  min-width: 0;
+  border: 0;
+  border-radius: 7px 0 0 7px;
+}
+
+.projectSidebar .sessionMenuTrigger {
+  display: grid;
+  width: 32px;
+  min-height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #94a3b8;
+  padding: 0;
+}
+
+.sessionMenuTrigger .material-symbols-rounded {
+  font-size: 19px;
+}
+
+.sessionRow:hover,
+.sessionRow[data-active='true'] {
+  background: #172033;
+}
+
+.sessionRow[data-active='true'] {
+  border-color: #334155;
+  background: #1e293b;
 }
 
 .folderRow > span:nth-child(3),
@@ -508,6 +611,21 @@
   background: #334155;
 }
 
+.contextMenu button:disabled {
+  background: transparent;
+}
+
+.contextMenu button[data-variant='danger'] {
+  color: #fca5a5;
+}
+
+.dialogBackdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.72);
+}
+
 .confirmDialog {
   position: fixed;
   top: 50%;
@@ -529,6 +647,12 @@
   margin: 0;
   color: #f8fafc;
   font-size: 14px;
+}
+
+.confirmDialog .dialogDescription {
+  max-width: 360px;
+  color: #cbd5e1;
+  line-height: 1.5;
 }
 
 .confirmActions {
@@ -568,5 +692,15 @@
 }
 
 .renameRow {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
   padding: 2px 10px;
+}
+
+.inlineError {
+  color: #fca5a5;
+  font-size: 11px;
+  line-height: 1.4;
 }
