@@ -633,5 +633,32 @@ describe('MarkdownRenderer', () => {
         sourceEndOffset: 4,
       });
     });
+
+    it('re-locates by text when the rendered offsets drift from the source', () => {
+      const onTextSelect = vi.fn();
+      const { container } = render(
+        <MarkdownRenderer content="one two" onTextSelect={onTextSelect} />,
+      );
+      const text = container.querySelector('p')!.firstChild as Text;
+      const range = document.createRange();
+      range.setStart(text, 0);
+      range.setEnd(text, 3); // the range points at "one"
+      // Simulate a drift between the DOM selection and the selection text
+      // (Chromium can anchor element-boundary selections differently).
+      vi.spyOn(window, 'getSelection').mockReturnValue({
+        toString: () => 'two',
+        rangeCount: 1,
+        getRangeAt: () => range,
+      } as unknown as Selection);
+
+      fireEvent.mouseUp(container.querySelector('[data-testid="markdown-renderer"]')!);
+
+      // The rendered mapping would yield [0,3) ("one"); the fallback re-locates
+      // the selected text so the anchor covers exactly "two".
+      expect(onTextSelect).toHaveBeenCalledWith('two', range, {
+        sourceStartOffset: 4,
+        sourceEndOffset: 7,
+      });
+    });
   });
 });

@@ -151,13 +151,47 @@ function getTrimmedRenderedBounds(
   return { start, end };
 }
 
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Locates `selectedText` inside `content`. Prefers an exact match; if the
+ * selected text carries newlines (Chromium appends '\n' at block-level
+ * boundaries to `selection.toString()`), falls back to a whitespace-tolerant
+ * match where any run of whitespace in the target matches `\s+`.
+ */
+function findSourceAnchor(
+  content: string,
+  selectedText: string,
+): { start: number; end: number } | null {
+  const trimmed = selectedText.trim();
+  if (!trimmed) return null;
+
+  const exactIndex = content.indexOf(trimmed);
+  if (exactIndex >= 0) {
+    return { start: exactIndex, end: exactIndex + trimmed.length };
+  }
+
+  const pattern = escapeRegExp(trimmed).replace(/\s+/g, '\\s+');
+  const match = new RegExp(pattern).exec(content);
+  if (!match) return null;
+  return { start: match.index, end: match.index + match[0].length };
+}
+
 function resolveSourceSelectionRange(
   container: HTMLElement,
   range: Range,
   rawSelectedText: string,
+  content: string,
   segments: TextSegment[],
 ): SourceSelectionRange | undefined {
-  if (!rawSelectedText.trim()) return undefined;
+  const selectedText = rawSelectedText.trim();
+  if (!selectedText) return undefined;
 
   const rawStart = getRenderedOffset(container, range.startContainer, range.startOffset);
   const rawEnd = getRenderedOffset(container, range.endContainer, range.endOffset);
@@ -169,6 +203,18 @@ function resolveSourceSelectionRange(
 
   if (sourceStartOffset === null || sourceEndOffset === null) return undefined;
   if (sourceStartOffset >= sourceEndOffset) return undefined;
+
+  // The rendered-offset mapping can drift from the persisted source in some
+  // Chromium selection cases (e.g. element-anchored selections). Verify the
+  // extracted text; if it does not match the selection, re-locate by text so
+  // the anchor still points at exactly what the user selected.
+  const actual = content.substring(sourceStartOffset, sourceEndOffset);
+  if (normalizeWhitespace(actual) !== normalizeWhitespace(selectedText)) {
+    const anchor = findSourceAnchor(content, selectedText);
+    if (!anchor) return undefined;
+    return { sourceStartOffset: anchor.start, sourceEndOffset: anchor.end };
+  }
+
   return { sourceStartOffset, sourceEndOffset };
 }
 
@@ -638,12 +684,13 @@ export function MarkdownRenderer({
             containerRef.current,
             range,
             rawSelectedText,
+            content,
             segmentsRef.current,
           )
         : undefined;
       onTextSelect(selectedText, range, sourceRange);
     }
-  }, [onTextSelect]);
+  }, [content, onTextSelect]);
 
   return (
     <div
