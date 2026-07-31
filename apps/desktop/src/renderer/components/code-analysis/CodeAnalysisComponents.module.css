@@ -316,6 +316,21 @@
   color: #facc15;
 }
 
+.annotationItem .anchorText {
+  cursor: pointer;
+  outline: none;
+  border-radius: 2px;
+}
+
+.annotationItem .anchorText:hover {
+  text-decoration: underline;
+}
+
+.annotationItem .anchorText:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
 .viewSourceBtn {
   align-self: flex-start;
   border: none;
