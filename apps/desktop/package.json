@@ -4,12 +4,19 @@
   "private": true,
   "main": "./dist/main/index.js",
   "scripts": {
+    "rebuild:native:node": "pnpm rebuild better-sqlite3",
+    "rebuild:native:electron": "electron-rebuild -f -w better-sqlite3",
+    "predev": "pnpm run rebuild:native:electron",
     "dev": "electron-vite dev",
+    "pretest": "pnpm run rebuild:native:node",
     "build": "electron-vite build",
     "test": "vitest run",
     "type-check": "tsc --noEmit",
+    "prepackage": "pnpm run rebuild:native:electron",
     "package": "electron-builder --config electron-builder.json",
+    "prepackage:win": "pnpm run rebuild:native:electron",
     "package:win": "electron-builder --win --config electron-builder.json",
+    "pretest:e2e": "pnpm run rebuild:native:electron",
     "test:e2e": "playwright test"
   },
   "dependencies": {
