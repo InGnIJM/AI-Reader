@@ -3,7 +3,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createDatabase, type DatabaseClient } from '../../../db/client';
-import { AnalysisExportService } from '../export-service';
+import { AnalysisExportService, type AireaderCodeAnalysisExport } from '../export-service';
 
 describe('AnalysisExportService', () => {
   let db: DatabaseClient;
@@ -222,5 +222,291 @@ describe('AnalysisExportService', () => {
 
     // Session title appears in the markdown output
     expect(markdown).toContain('Startup Analysis');
+  });
+
+  it('exportDocument returns markdown artifact with default file name', async () => {
+    const service = new AnalysisExportService(db);
+    const artifact = await service.exportDocument('doc-1', 'markdown');
+
+    expect(artifact.format).toBe('markdown');
+    expect(artifact.defaultFileName).toBe('Startup Analysis.md');
+    expect(artifact.content).toContain('# Startup');
+  });
+
+  it('exportDocument returns JSON artifact as pretty-printed string', async () => {
+    const service = new AnalysisExportService(db);
+    const artifact = await service.exportDocument('doc-1', 'json');
+
+    expect(artifact.format).toBe('json');
+    expect(artifact.defaultFileName).toBe('Startup Analysis.json');
+    const parsed = JSON.parse(artifact.content) as AireaderCodeAnalysisExport;
+    expect(parsed.type).toBe('code-analysis-document');
+    expect(parsed.sessionTitle).toBe('Startup Analysis');
+  });
+
+  it('exportDocument sanitizes illegal file name characters', async () => {
+    db.db.prepare("UPDATE analysis_sessions SET title = 'A/B:C*?' WHERE id = 'session-1'").run();
+    const service = new AnalysisExportService(db);
+    const artifact = await service.exportDocument('doc-1', 'markdown');
+
+    expect(artifact.defaultFileName).toBe('A_B_C__.md');
+  });
+
+  it('exportDocument throws for unsupported format', async () => {
+    const service = new AnalysisExportService(db);
+    await expect(service.exportDocument('doc-1', 'html' as never)).rejects.toThrow(
+      'Unsupported export format: html',
+    );
+  });
+
+  it('importDocument delegates to importJson for code-analysis-document type', async () => {
+    const service = new AnalysisExportService(db);
+    const exported = await service.exportJson('doc-1');
+
+    const targetDb = createDatabase(':memory:');
+    try {
+      const targetService = new AnalysisExportService(targetDb);
+      const imported = await targetService.importDocument(exported);
+
+      expect(imported.contentMarkdown).toContain('# Startup');
+      const session = targetDb.db
+        .prepare('SELECT title FROM analysis_sessions')
+        .get() as { title: string };
+      expect(session.title).toBe('Startup Analysis');
+    } finally {
+      targetDb.close();
+    }
+  });
+
+  it('importDocument throws for unsupported type', async () => {
+    const service = new AnalysisExportService(db);
+    await expect(service.importDocument({ type: 'unknown-format' })).rejects.toThrow(
+      'Unsupported import format: unknown-format',
+    );
+  });
+
+  it('importDocument throws for non-object payload', async () => {
+    const service = new AnalysisExportService(db);
+    await expect(service.importDocument('plain text')).rejects.toThrow(
+      'Invalid import payload: expected an object',
+    );
+  });
+
+  it('importJson rejects payloads with an unsupported schema or type', async () => {
+    const service = new AnalysisExportService(db);
+    const exported = await service.exportJson('doc-1');
+
+    await expect(
+      service.importJson({ ...exported, schemaVersion: 2 } as never),
+    ).rejects.toThrow('Unsupported code analysis export payload');
+    await expect(
+      service.importJson({ ...exported, type: 'other-format' } as never),
+    ).rejects.toThrow('Unsupported code analysis export payload');
+  });
+
+  it('importJson restores tool traces', async () => {
+    db.db
+      .prepare(
+        `
+      INSERT INTO analysis_tool_traces
+        (id, analysis_document_id, step_index, tool_name, tool_args_json, result_summary, created_at)
+      VALUES ('trace-1', 'doc-1', 0, 'listFiles', '{"path":"src"}', 'found 2 files', ?)
+    `,
+      )
+      .run(new Date().toISOString());
+
+    const service = new AnalysisExportService(db);
+    const exported = await service.exportJson('doc-1');
+    expect(exported.toolTrace).toHaveLength(1);
+
+    const targetDb = createDatabase(':memory:');
+    try {
+      const targetService = new AnalysisExportService(targetDb);
+      await targetService.importJson(exported);
+
+      const traces = targetDb.db
+        .prepare(
+          'SELECT step_index AS stepIndex, tool_name AS toolName, result_summary AS resultSummary FROM analysis_tool_traces',
+        )
+        .all();
+      expect(traces).toEqual([
+        { stepIndex: 0, toolName: 'listFiles', resultSummary: 'found 2 files' },
+      ]);
+    } finally {
+      targetDb.close();
+    }
+  });
+
+  it('export throws when the document does not exist', async () => {
+    const service = new AnalysisExportService(db);
+    await expect(service.exportMarkdown('missing-doc')).rejects.toThrow(
+      'Analysis document not found: missing-doc',
+    );
+  });
+
+  it('importJson skips discussion messages that reference unknown annotations', async () => {
+    const service = new AnalysisExportService(db);
+    const exported = await service.exportJson('doc-1');
+    const withOrphanMessage = {
+      ...exported,
+      discussionMessages: [
+        ...exported.discussionMessages,
+        {
+          annotationId: 'ann-missing',
+          role: 'assistant',
+          content: 'orphan reply',
+          createdAt: '2026-07-31T00:00:00.000Z',
+        },
+      ],
+    };
+
+    const targetDb = createDatabase(':memory:');
+    try {
+      const targetService = new AnalysisExportService(targetDb);
+      await targetService.importJson(withOrphanMessage as never);
+
+      const messages = targetDb.db
+        .prepare('SELECT COUNT(*) AS c FROM analysis_discussion_messages')
+        .get() as { c: number };
+      expect(messages.c).toBe(1); // 只有 ann-1 的消息被导入，孤儿消息被跳过
+    } finally {
+      targetDb.close();
+    }
+  });
+
+  it('importJson fills defaults when optional fields are absent', async () => {
+    const minimal = {
+      schemaVersion: 1,
+      type: 'code-analysis-document',
+      sessionTitle: undefined,
+      sourceDirectoryName: 'No Project',
+      sourceDirectoryPathHash: '',
+      analysisGoal: 'Minimal',
+      analysisMarkdown: '# Minimal',
+      toolTrace: [],
+      referencedFiles: [],
+      annotations: [
+        {
+          id: 'ann-a',
+          anchorStartOffset: 0,
+          anchorEndOffset: 1,
+          anchorExactText: 'M',
+          anchorPrefix: '',
+          anchorSuffix: '',
+          question: 'Q',
+          status: 'pending',
+          createdAt: '2026-07-31T00:00:00.000Z',
+          updatedAt: '2026-07-31T00:00:00.000Z',
+        },
+      ],
+      discussionMessages: [
+        {
+          annotationId: 'ann-a',
+          role: 'assistant',
+          content: 'Reply',
+          modelId: undefined,
+          createdAt: '2026-07-31T00:00:00.000Z',
+        },
+      ],
+      modelInfo: {},
+      createdAt: '2026-07-31T00:00:00.000Z',
+      exportedAt: '2026-07-31T00:00:00.000Z',
+    };
+
+    const targetDb = createDatabase(':memory:');
+    try {
+      const targetService = new AnalysisExportService(targetDb);
+      const imported = await targetService.importJson(minimal as never);
+
+      expect(imported.contentMarkdown).toContain('# Minimal');
+      const session = targetDb.db
+        .prepare('SELECT title FROM analysis_sessions')
+        .get() as { title: string };
+      expect(session.title).toBe('Imported Session'); // ?? 默认值
+      const doc = targetDb.db
+        .prepare('SELECT model_id AS modelId FROM analysis_documents WHERE id = ?')
+        .get(imported.id) as { modelId: string | null };
+      expect(doc.modelId).toBeNull();
+      const msg = targetDb.db
+        .prepare('SELECT model_id AS modelId FROM analysis_discussion_messages')
+        .get() as { modelId: string | null };
+      expect(msg.modelId).toBeNull();
+    } finally {
+      targetDb.close();
+    }
+  });
+
+  it('exportJson falls back to No Project metadata for local sessions', async () => {
+    const now = new Date().toISOString();
+    db.db
+      .prepare(
+        `INSERT INTO analysis_sessions (id, project_id, title, status, active_branch_id, active_document_id, created_at, updated_at)
+         VALUES ('session-local', NULL, 'Local', 'active', NULL, NULL, ?, ?)`,
+      )
+      .run(now, now);
+    db.db
+      .prepare(
+        `INSERT INTO analysis_branches (id, session_id, name, parent_branch_id, forked_from_document_id, head_document_id, created_at, updated_at)
+         VALUES ('branch-local', 'session-local', '主分支', NULL, NULL, NULL, ?, ?)`,
+      )
+      .run(now, now);
+    db.db
+      .prepare(
+        `INSERT INTO analysis_documents (id, session_id, branch_id, goal, content_markdown, status, model_id, tool_call_count, created_at, updated_at)
+         VALUES ('doc-local', 'session-local', 'branch-local', 'Local', '# Local', 'completed', 'mock', 0, ?, ?)`,
+      )
+      .run(now, now);
+    db.db.prepare('UPDATE analysis_branches SET head_document_id = ? WHERE id = ?').run('doc-local', 'branch-local');
+    db.db
+      .prepare('UPDATE analysis_sessions SET active_branch_id = ?, active_document_id = ? WHERE id = ?')
+      .run('branch-local', 'doc-local', 'session-local');
+
+    const service = new AnalysisExportService(db);
+    const exported = await service.exportJson('doc-local');
+
+    expect(exported.sourceDirectoryName).toBe('No Project');
+    expect(exported.sourceDirectoryPathHash).toBe('');
+  });
+
+  it('importDocument reports unknown when the payload has no type field', async () => {
+    const service = new AnalysisExportService(db);
+    await expect(service.importDocument({})).rejects.toThrow('Unsupported import format: unknown');
+  });
+
+  it('exportDocument uses a generic file name when the session title is only whitespace', async () => {
+    db.db.prepare("UPDATE analysis_sessions SET title = '   ' WHERE id = 'session-1'").run();
+    const service = new AnalysisExportService(db);
+    const artifact = await service.exportDocument('doc-1', 'markdown');
+
+    expect(artifact.defaultFileName).toBe('export.md');
+  });
+
+  it('importJson rolls back the transaction when a step fails', async () => {
+    const service = new AnalysisExportService(db);
+    const exported = await service.exportJson('doc-1');
+
+    const targetDb = createDatabase(':memory:');
+    try {
+      const targetService = new AnalysisExportService(targetDb);
+      // content_markdown 显式传入 undefined 会违反 NOT NULL 约束，触发回滚
+      await expect(
+        targetService.importJson({ ...exported, analysisMarkdown: undefined } as never),
+      ).rejects.toThrow();
+
+      const sessions = targetDb.db
+        .prepare('SELECT COUNT(*) AS c FROM analysis_sessions')
+        .get() as { c: number };
+      const branches = targetDb.db
+        .prepare('SELECT COUNT(*) AS c FROM analysis_branches')
+        .get() as { c: number };
+      const documents = targetDb.db
+        .prepare('SELECT COUNT(*) AS c FROM analysis_documents')
+        .get() as { c: number };
+      expect(sessions.c).toBe(0);
+      expect(branches.c).toBe(0);
+      expect(documents.c).toBe(0);
+    } finally {
+      targetDb.close();
+    }
   });
 });

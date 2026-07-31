@@ -40,7 +40,8 @@ describe('code analysis IPC handlers', () => {
     expect(channels).toContain(IPC_CHANNELS.CODE_ANALYSIS_LIST_RECENT_DOCUMENTS);
     expect(channels).toContain(IPC_CHANNELS.CODE_ANALYSIS_CREATE_ANNOTATION);
     expect(channels).toContain(IPC_CHANNELS.CODE_ANALYSIS_LIST_ANNOTATION_MESSAGES);
-    expect(channels).toContain(IPC_CHANNELS.CODE_ANALYSIS_EXPORT_JSON);
+    expect(channels).toContain(IPC_CHANNELS.CODE_ANALYSIS_EXPORT_DOCUMENT);
+    expect(channels).toContain(IPC_CHANNELS.CODE_ANALYSIS_IMPORT_DOCUMENT);
   });
 
   it('only creates projects for directories authorized by the native picker', async () => {

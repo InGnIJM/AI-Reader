@@ -14,6 +14,7 @@ vi.mock('electron', () => ({
   },
   dialog: {
     showOpenDialog: vi.fn(),
+    showSaveDialog: vi.fn(),
   },
   BrowserWindow: {
     fromWebContents: vi.fn(() => ({ id: 1 })),
@@ -23,10 +24,11 @@ vi.mock('electron', () => ({
 // Mock fs/promises
 vi.mock('fs/promises', () => ({
   readFile: vi.fn(),
+  writeFile: vi.fn(),
 }));
 
 import { dialog } from 'electron';
-import { readFile } from 'fs/promises';
+import { readFile, writeFile } from 'fs/promises';
 
 describe('Document IPC Handlers', () => {
   let db: DatabaseClient;
@@ -330,6 +332,73 @@ describe('Document IPC Handlers', () => {
       expect(result).toEqual({
         success: false,
         error: 'ENOENT: file not found',
+      });
+    });
+  });
+
+  // ── dialog:saveFile ─────────────────────────────────────────────────────
+  describe('dialog:saveFile', () => {
+    it('should save content and return the file path', async () => {
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({
+        canceled: false,
+        filePath: '/out/analysis.md',
+      } as Awaited<ReturnType<typeof dialog.showSaveDialog>>);
+
+      const handler = handlers.get(IPC_CHANNELS.DIALOG_SAVE_FILE)!;
+      const result = await handler(
+        { sender: {} },
+        { defaultFileName: 'analysis.md', content: '# Hello' },
+      );
+
+      expect(result).toEqual({
+        success: true,
+        data: { canceled: false, filePath: '/out/analysis.md' },
+      });
+      expect(writeFile).toHaveBeenCalledWith('/out/analysis.md', '# Hello', 'utf8');
+    });
+
+    it('should return canceled when the dialog is canceled', async () => {
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({
+        canceled: true,
+        filePath: undefined,
+      } as Awaited<ReturnType<typeof dialog.showSaveDialog>>);
+
+      const handler = handlers.get(IPC_CHANNELS.DIALOG_SAVE_FILE)!;
+      const result = await handler({ sender: {} }, { defaultFileName: 'a.md', content: '' });
+
+      expect(result).toEqual({
+        success: true,
+        data: { canceled: true, filePath: null },
+      });
+      expect(writeFile).not.toHaveBeenCalled();
+    });
+
+    it('should return error when no parent window is found', async () => {
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(null);
+
+      const handler = handlers.get(IPC_CHANNELS.DIALOG_SAVE_FILE)!;
+      const result = await handler({ sender: {} }, { defaultFileName: 'a.md', content: '' });
+
+      expect(result).toEqual({
+        success: false,
+        error: 'No parent window found',
+      });
+    });
+
+    it('should return error when writing fails', async () => {
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({
+        canceled: false,
+        filePath: '/out/bad.md',
+      } as Awaited<ReturnType<typeof dialog.showSaveDialog>>);
+      vi.mocked(writeFile).mockRejectedValue(new Error('EACCES: permission denied'));
+
+      const handler = handlers.get(IPC_CHANNELS.DIALOG_SAVE_FILE)!;
+      const result = await handler({ sender: {} }, { defaultFileName: 'bad.md', content: 'x' });
+
+      expect(result).toEqual({
+        success: false,
+        error: 'EACCES: permission denied',
       });
     });
   });
