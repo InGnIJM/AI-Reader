@@ -282,6 +282,7 @@
 
 .traceItem,
 .annotationItem {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -354,6 +355,9 @@
 }
 
 .deleteAnnotationBtn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
   display: inline-flex;
   align-items: center;
   border: none;

@@ -103,6 +103,21 @@ export function AnnotationSidebar({
           const isExpanded = expandedIds.has(annotation.id);
           return (
             <article className={styles.annotationItem} key={annotation.id}>
+              {onDelete && (
+                <button
+                  type="button"
+                  className={styles.deleteAnnotationBtn}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(annotation.id);
+                  }}
+                  aria-label="删除批注"
+                  title="删除批注"
+                  data-testid={`annotation-delete-${annotation.id}`}
+                >
+                  <span className="material-symbols-rounded">close</span>
+                </button>
+              )}
               <div
                 className={styles.annotationHeader}
                 role="button"
@@ -154,36 +169,17 @@ export function AnnotationSidebar({
                         <MarkdownRenderer content={message.content} />
                       </div>
                     ))}
-                  {(onViewSource || onDelete) && (
-                    <div className={styles.annotationActions}>
-                      {onViewSource && (
-                        <button
-                          type="button"
-                          className={styles.viewSourceBtn}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onViewSource(annotation.id);
-                          }}
-                        >
-                          {viewSourceLabel ?? '查看原文'}
-                        </button>
-                      )}
-                      {onDelete && (
-                        <button
-                          type="button"
-                          className={styles.deleteAnnotationBtn}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDelete(annotation.id);
-                          }}
-                          aria-label="删除批注"
-                          title="删除批注"
-                          data-testid={`annotation-delete-${annotation.id}`}
-                        >
-                          <span className="material-symbols-rounded">close</span>
-                        </button>
-                      )}
-                    </div>
+                  {onViewSource && (
+                    <button
+                      type="button"
+                      className={styles.viewSourceBtn}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onViewSource(annotation.id);
+                      }}
+                    >
+                      {viewSourceLabel ?? '查看原文'}
+                    </button>
                   )}
                 </div>
               )}
