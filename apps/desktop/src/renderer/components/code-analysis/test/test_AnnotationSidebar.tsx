@@ -240,6 +240,32 @@ describe('AnnotationSidebar view source', () => {
 
     expect(screen.queryByText(/view source|查看原文/i)).not.toBeInTheDocument();
   });
+
+  it('should call onViewSource when the anchor text is clicked without toggling expansion', () => {
+    const onViewSource = vi.fn();
+    const annotations = [
+      makeAnnotation({ id: 'ann-5', anchorExactText: 'click anchor text' }),
+    ];
+
+    renderSidebar({ annotations, onViewSource });
+
+    fireEvent.click(screen.getByText('click anchor text'));
+
+    expect(onViewSource).toHaveBeenCalledWith('ann-5');
+    const item = screen.getByText('click anchor text').closest('article')!;
+    expect(item.querySelector('[aria-expanded]')).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('should render a custom viewSourceLabel when provided', () => {
+    const onViewSource = vi.fn();
+    const annotations = [
+      makeAnnotation({ id: 'ann-1' }),
+    ];
+
+    renderSidebar({ annotations, activeAnnotationId: 'ann-1', onViewSource, viewSourceLabel: 'Jump' });
+
+    expect(screen.getByText('Jump')).toBeInTheDocument();
+  });
 });
 
 // ── onActivate Callback ──────────────────────────────────────────────────────
