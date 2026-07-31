@@ -6,7 +6,7 @@
  */
 
 import { ipcMain, dialog, BrowserWindow } from 'electron';
-import { readFile } from 'fs/promises';
+import { readFile, writeFile } from 'fs/promises';
 import { basename } from 'path';
 import { IPC_CHANNELS, createLogger } from '@ai-reader/shared';
 import type {
@@ -16,6 +16,8 @@ import type {
   DocumentSummary,
   ChapterData,
   OpenFileDialogResult,
+  SaveFilePayload,
+  SaveFileResult,
 } from '@ai-reader/shared';
 import type { DocumentImportService, DocumentDetail } from '../services/document-import';
 
@@ -162,6 +164,43 @@ export function registerDocumentHandlers(service: DocumentImportService): void {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         log.error(`IPC dialog:openFile failed: ${message}`);
+        return { success: false, error: message };
+      }
+    },
+  );
+
+  // ── dialog:saveFile ──────────────────────────────────────────────────────
+  ipcMain.handle(
+    IPC_CHANNELS.DIALOG_SAVE_FILE,
+    async (event, payload: SaveFilePayload): Promise<IPCResult<SaveFileResult>> => {
+      try {
+        log.info(`IPC dialog:saveFile file=${payload.defaultFileName}`);
+        const win = BrowserWindow.fromWebContents(event.sender);
+        if (!win) {
+          return { success: false, error: 'No parent window found' };
+        }
+
+        const result = await dialog.showSaveDialog(win, {
+          title: '保存文件',
+          defaultPath: payload.defaultFileName,
+          filters: payload.filters,
+        });
+
+        if (result.canceled || !result.filePath) {
+          return {
+            success: true,
+            data: { canceled: true, filePath: null },
+          };
+        }
+
+        await writeFile(result.filePath, payload.content, 'utf8');
+        return {
+          success: true,
+          data: { canceled: false, filePath: result.filePath },
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        log.error(`IPC dialog:saveFile failed: ${message}`);
         return { success: false, error: message };
       }
     },
