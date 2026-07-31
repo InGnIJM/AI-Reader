@@ -36,6 +36,7 @@ describe('CodeAnalysisWorkbench', () => {
         listAnnotations: vi.fn(async () => []),
         listAnnotationMessages: vi.fn(async () => []),
         replyToAnnotation: vi.fn(async () => []),
+        deleteAnnotation: vi.fn(async () => undefined),
         exportDocument: vi.fn(async (_documentId: string, format: any) =>
           format === 'markdown'
             ? {
@@ -688,6 +689,83 @@ describe('CodeAnalysisWorkbench', () => {
         sourceEndOffset: 11,
         question: 'Explain this link',
       }),
+    );
+  });
+
+  it('deletes an annotation from the sidebar', async () => {
+    (window.api.codeAnalysis.runTurn as ReturnType<typeof vi.fn>).mockResolvedValue({
+      session: {
+        id: 'session-del',
+        title: 'Delete',
+        status: 'active',
+        projectId: 'project-1',
+        activeBranchId: 'branch-1',
+        activeDocumentId: 'doc-turn-1',
+        archivedAt: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      branch: {
+        id: 'branch-1',
+        sessionId: 'session-del',
+        name: 'main',
+        parentBranchId: null,
+        forkedFromDocumentId: null,
+        headDocumentId: 'doc-turn-1',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      turn: {
+        id: 'doc-turn-1',
+        sessionId: 'session-del',
+        branchId: 'branch-1',
+        parentDocumentId: null,
+        goal: 'Explain',
+        contentMarkdown: 'Some content',
+        status: 'completed',
+        toolCallCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    (window.api.codeAnalysis.listAnnotations as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        id: 'ann-del',
+        analysisDocumentId: 'doc-turn-1',
+        anchorExactText: 'content',
+        selectedText: 'content',
+        question: 'q',
+        status: 'answered',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ]);
+    (window.api.codeAnalysis.listAnnotationMessages as ReturnType<typeof vi.fn>).mockResolvedValue(
+      [
+        {
+          id: 'm1',
+          annotationId: 'ann-del',
+          role: 'assistant',
+          content: 'reply',
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    );
+
+    const user = userEvent.setup();
+    render(<CodeAnalysisWorkbench />);
+    await user.click(screen.getByRole('button', { name: /select directory/i }));
+    await user.type(screen.getByLabelText(/analysis goal/i), 'Explain');
+    await user.keyboard('{Enter}');
+
+    const deleteBtn = await screen.findByTestId('annotation-delete-ann-del');
+    await user.click(deleteBtn);
+
+    await waitFor(() =>
+      expect(window.api.codeAnalysis.deleteAnnotation).toHaveBeenCalledWith('ann-del'),
+    );
+    await waitFor(() =>
+      expect(screen.queryByTestId('annotation-delete-ann-del')).not.toBeInTheDocument(),
     );
   });
 

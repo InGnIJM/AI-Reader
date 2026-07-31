@@ -335,3 +335,25 @@ describe('AnnotationSidebar accessibility', () => {
     }
   });
 });
+
+// ── Delete ───────────────────────────────────────────────────────────────────
+
+describe('AnnotationSidebar delete', () => {
+  it('should call onDelete when the delete button is clicked', () => {
+    const onDelete = vi.fn();
+    const annotations = [makeAnnotation({ id: 'ann-1' })];
+
+    renderSidebar({ annotations, activeAnnotationId: 'ann-1', onDelete });
+
+    fireEvent.click(screen.getByTestId('annotation-delete-ann-1'));
+    expect(onDelete).toHaveBeenCalledWith('ann-1');
+  });
+
+  it('should not render the delete button when onDelete is not provided', () => {
+    const annotations = [makeAnnotation({ id: 'ann-1' })];
+
+    renderSidebar({ annotations, activeAnnotationId: 'ann-1' });
+
+    expect(screen.queryByTestId('annotation-delete-ann-1')).not.toBeInTheDocument();
+  });
+});

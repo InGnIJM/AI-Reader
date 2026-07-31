@@ -203,6 +203,41 @@ describe('analysis annotations and replies', () => {
     );
   });
 
+  it('deletes an annotation and cascades its discussion messages', async () => {
+    const now = new Date().toISOString();
+    db.db
+      .prepare(
+        `INSERT INTO analysis_documents
+          (id, session_id, branch_id, goal, content_markdown, status, model_id, tool_call_count, created_at, updated_at)
+         VALUES ('doc-del', 'session-base', 'branch-base', 'Explain', 'deletable content', 'completed', 'mock', 0, ?, ?)`,
+      )
+      .run(now, now);
+
+    const annotations = new AnalysisAnnotationService(db);
+    const created = await annotations.create({
+      analysisDocumentId: 'doc-del',
+      selectedText: 'deletable',
+      question: 'q',
+    });
+    await annotations.addMessage({
+      annotationId: created.id,
+      role: 'assistant',
+      content: 'reply',
+    });
+
+    await annotations.delete(created.id);
+
+    expect(await annotations.getById(created.id)).toBeNull();
+    expect(await annotations.listMessages(created.id)).toEqual([]);
+  });
+
+  it('rejects deleting a nonexistent annotation', async () => {
+    const annotations = new AnalysisAnnotationService(db);
+    await expect(annotations.delete('missing-annotation')).rejects.toThrow(
+      'Annotation not found',
+    );
+  });
+
   it('rejects NaN source offsets', async () => {
     const now = new Date().toISOString();
     db.db
