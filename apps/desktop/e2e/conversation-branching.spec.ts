@@ -10,8 +10,8 @@
 
 import { test, expect, _electron as electron } from '@playwright/test';
 import { tmpdir } from 'os';
-import { join } from 'path';
-import { mkdtempSync, rmSync } from 'fs';
+import { join, resolve } from 'path';
+import { mkdtempSync, realpathSync, rmSync } from 'fs';
 import { MockLLMServer, MOCK_LLM_CONTENT } from './support/mock-llm-server';
 
 let mockServer: MockLLMServer;
@@ -144,14 +144,20 @@ async function replyToAnnotation(page: any, annotationId: string) {
 
 async function exportJson(page: any, documentId: string) {
   return page.evaluate(
-    (id: string) => (window as any).api.codeAnalysis.exportJson(id),
+    async (id: string) => {
+      const artifact = await (window as any).api.codeAnalysis.exportDocument(id, 'json');
+      return JSON.parse(artifact.content);
+    },
     documentId,
   );
 }
 
 async function exportMarkdown(page: any, documentId: string): Promise<string> {
   return page.evaluate(
-    (id: string) => (window as any).api.codeAnalysis.exportMarkdown(id),
+    async (id: string) => {
+      const artifact = await (window as any).api.codeAnalysis.exportDocument(id, 'markdown');
+      return artifact.content;
+    },
     documentId,
   );
 }
@@ -159,7 +165,7 @@ async function exportMarkdown(page: any, documentId: string): Promise<string> {
 /** Launch the Electron app pointing at the mock LLM server. */
 async function launchApp() {
   return electron.launch({
-    args: [process.cwd()],
+    args: [process.cwd(), `--user-data-dir=${userDataDir}`],
     env: {
       ...process.env,
       LLM_API_KEY: 'test-e2e-key',
@@ -173,6 +179,140 @@ async function launchApp() {
 // ---------------------------------------------------------------------------
 
 test.describe('E2E: Session -> Branch -> Annotation -> Export', () => {
+  test('should isolate Electron user data in the per-test temporary directory', async () => {
+    const app = await launchApp();
+
+    try {
+      const actualUserDataDir = await app.evaluate(({ app: electronApp }) =>
+        electronApp.getPath('userData'),
+      );
+      expect(realpathSync.native(resolve(actualUserDataDir))).toBe(
+        realpathSync.native(resolve(userDataDir)),
+      );
+    } finally {
+      await app.close();
+    }
+  });
+
+  test('should keep project folders visible when recent sessions overflow', async () => {
+    const app = await launchApp();
+    const page = await app.firstWindow();
+
+    try {
+      await app.evaluate(
+        ({ BrowserWindow, dialog }, selectedPath) => {
+          BrowserWindow.getAllWindows()[0]?.setSize(1000, 600);
+          dialog.showOpenDialog = async () => ({
+            canceled: false,
+            filePaths: [selectedPath],
+          });
+        },
+        userDataDir,
+      );
+
+      const selectedDirectory = await page.evaluate(() =>
+        (window as any).api.dialog.openDirectory(),
+      );
+      const project = await page.evaluate(
+        (rootPath: string) => (window as any).api.codeAnalysis.createProject(rootPath),
+        selectedDirectory.filePaths[0],
+      );
+
+      for (let index = 0; index < 20; index += 1) {
+        await runTurn(page, { goal: `Recent session ${index + 1}` });
+      }
+
+      await page.reload();
+      await page.locator(`[data-testid="project-${project.id}"]`).waitFor();
+
+      const layout = await page.evaluate((projectId: string) => {
+        const sidebar = document.querySelector('aside');
+        const projectFolder = document.querySelector(`[data-testid="project-${projectId}"]`);
+        const projectSection = projectFolder?.closest('section');
+        const recentSection = Array.from(sidebar?.querySelectorAll('section') ?? []).find(
+          (section) => section !== projectSection,
+        );
+        const recentList = recentSection?.querySelector('div');
+        if (!sidebar || !recentList || !recentSection || !projectFolder || !projectSection) {
+          throw new Error('Sidebar layout elements were not rendered');
+        }
+
+        const sidebarRect = sidebar.getBoundingClientRect();
+        const projectRect = projectFolder.getBoundingClientRect();
+        const projectSectionRect = projectSection.getBoundingClientRect();
+        const recentSectionRect = recentSection.getBoundingClientRect();
+        return {
+          recentClientHeight: recentList.clientHeight,
+          recentScrollHeight: recentList.scrollHeight,
+          sidebarTop: sidebarRect.top,
+          sidebarBottom: sidebarRect.bottom,
+          projectTop: projectRect.top,
+          projectBottom: projectRect.bottom,
+          projectSectionTop: projectSectionRect.top,
+          recentSectionTop: recentSectionRect.top,
+        };
+      }, project.id);
+
+      expect(layout.recentScrollHeight).toBeGreaterThan(layout.recentClientHeight);
+      expect(layout.projectTop).toBeGreaterThanOrEqual(layout.sidebarTop);
+      expect(layout.projectBottom).toBeLessThanOrEqual(layout.sidebarBottom);
+      expect(layout.projectSectionTop).toBeLessThan(layout.recentSectionTop);
+    } finally {
+      await app.close();
+    }
+  });
+
+  test('should manage a session through rename, archive, restore, and delete UI', async () => {
+    const app = await launchApp();
+    const page = await app.firstWindow();
+
+    try {
+      // The app defaults to zh-CN on a fresh profile; pin English so the
+      // accessible-name assertions below are language-deterministic.
+      await page.evaluate(() => (window as any).api.settings.setLanguage('en-US'));
+      await page.reload();
+
+      const created = await runTurn(page, { goal: 'Session management flow' });
+      await page.reload();
+
+      await page
+        .getByRole('button', { name: 'Manage session: Session management flow' })
+        .click();
+      await page.getByRole('menuitem', { name: 'Rename' }).click();
+      const titleInput = page.getByRole('textbox', { name: 'Session title' });
+      await titleInput.fill('Managed session');
+      await titleInput.press('Enter');
+      await expect(page.getByRole('button', { name: 'Managed session', exact: true })).toBeVisible();
+
+      await page.getByRole('button', { name: 'Manage session: Managed session' }).click();
+      await page.getByRole('menuitem', { name: 'Archive' }).click();
+      await expect(page.getByRole('button', { name: 'Managed session', exact: true })).toHaveCount(0);
+
+      await page.getByRole('button', { name: 'Archived', exact: true }).click();
+      await page.getByRole('button', { name: 'No Project', exact: true }).click();
+      await page.getByRole('button', { name: 'Managed session', exact: true }).click();
+      await expect(
+        page.getByText('Archived sessions are read-only. Restore this session to continue.'),
+      ).toBeVisible();
+      await expect(page.getByRole('textbox', { name: 'Analysis goal' })).toHaveCount(0);
+
+      await page.getByRole('button', { name: 'Manage session: Managed session' }).click();
+      await page.getByRole('menuitem', { name: 'Restore' }).click();
+      await expect(page.getByRole('textbox', { name: 'Analysis goal' })).toBeVisible();
+
+      await page.getByRole('button', { name: 'Manage session: Managed session' }).click();
+      await page.getByRole('menuitem', { name: 'Delete' }).click();
+      await page.getByRole('button', { name: 'Delete permanently' }).click();
+
+      await expect
+        .poll(() => getSession(page, created.session.id))
+        .toBeNull();
+      await expect(page.getByRole('button', { name: 'Managed session', exact: true })).toHaveCount(0);
+    } finally {
+      await app.close();
+    }
+  });
+
   test('should create a session and run the first turn', async () => {
     const app = await launchApp();
     const page = await app.firstWindow();
