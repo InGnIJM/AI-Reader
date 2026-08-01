@@ -98,6 +98,26 @@ describe('code analysis IPC handlers', () => {
     });
   });
 
+  it('delegates independent session forks to the session service', async () => {
+    const forkAsIndependentSession = vi.fn(async (payload) => ({
+      id: 'session-clone',
+      ...payload,
+    }));
+    registerCodeAnalysisHandlers({
+      sessionService: { forkAsIndependentSession },
+    } as any);
+    const fork = (ipcMain.handle as any).mock.calls.find(
+      (call: any[]) => call[0] === IPC_CHANNELS.CODE_ANALYSIS_FORK_SESSION,
+    )?.[1];
+    const payload = { sessionId: 'session-1', documentId: 'turn-2' };
+
+    await expect(fork({}, payload)).resolves.toEqual({
+      success: true,
+      data: { id: 'session-clone', ...payload },
+    });
+    expect(forkAsIndependentSession).toHaveBeenCalledWith(payload);
+  });
+
   it('returns an IPC failure when annotation reply generation fails', async () => {
     const deps = {
       analysisReplyEngine: {

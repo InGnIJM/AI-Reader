@@ -12,6 +12,7 @@ import type {
   CodeAnalysisDeleteAnnotationPayload,
   CodeAnalysisCheckoutTurnPayload,
   CodeAnalysisDeleteSessionPayload,
+  CodeAnalysisForkSessionPayload,
   CodeAnalysisDiscussionMessageData,
   CodeAnalysisDocumentData,
   CodeAnalysisListSessionsPayload,
@@ -239,6 +240,14 @@ export function registerCodeAnalysisHandlers(deps: CodeAnalysisHandlerDeps): voi
     async (_event, payload: CodeAnalysisDeleteSessionPayload): Promise<IPCResult<{ cleanupPending: boolean }>> =>
       handle('codeAnalysis:deleteSession', () =>
         deps.sessionService.deletePermanently(payload.sessionId, payload.confirmed),
+      ),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_FORK_SESSION,
+    async (_event, payload: CodeAnalysisForkSessionPayload): Promise<IPCResult<AnalysisSession>> =>
+      handle('codeAnalysis:forkSession', () =>
+        deps.sessionService.forkAsIndependentSession(payload),
       ),
   );
 
