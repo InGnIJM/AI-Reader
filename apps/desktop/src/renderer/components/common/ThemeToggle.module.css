@@ -1,0 +1,29 @@
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+  transition: background-color var(--md-sys-motion-duration-fast)
+      var(--md-sys-motion-easing-standard),
+    color var(--md-sys-motion-duration-fast) var(--md-sys-motion-easing-standard);
+}
+
+.toggle:hover {
+  background-color: var(--md-sys-color-accent-soft);
+  color: var(--md-sys-color-accent-strong);
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.toggle .material-symbols-rounded {
+  font-size: 20px;
+}
