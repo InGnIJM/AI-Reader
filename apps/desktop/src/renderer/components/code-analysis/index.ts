@@ -2,7 +2,6 @@ export { AnalysisMarkdownViewer } from './AnalysisMarkdownViewer';
 export { AnalysisPromptBox } from './AnalysisPromptBox';
 export { AnnotationSidebar } from './AnnotationSidebar';
 export { ConversationTimeline } from './ConversationTimeline';
-export { ExportMenu } from './ExportMenu';
 export { ProjectSidebar } from './ProjectSidebar';
 export { ToolTraceTimeline } from './ToolTraceTimeline';
 export type { AnalysisAnnotationItem, AnnotationSidebarProps } from './AnnotationSidebar';

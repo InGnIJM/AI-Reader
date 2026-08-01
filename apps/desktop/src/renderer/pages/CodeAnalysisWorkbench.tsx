@@ -14,10 +14,10 @@ import {
   AnalysisPromptBox,
   AnnotationSidebar,
   ConversationTimeline,
-  ExportMenu,
   ProjectSidebar,
   ToolTraceTimeline,
 } from '../components/code-analysis';
+import { ReplyActions } from '../components/code-analysis/ReplyActions';
 import type { AnalysisAnnotationItem, ToolTraceItem } from '../components/code-analysis';
 import AppTitleBar from '../components/common/AppTitleBar';
 import type { AnnotationDef, SourceSelectionRange } from '../components/common/MarkdownRenderer';
@@ -1094,10 +1094,9 @@ export default function CodeAnalysisWorkbench() {
 
   // 导出：先生成内容制品，再通过通用保存通道落盘
   const handleExport = useCallback(
-    async (format: AnalysisExportFormat) => {
-      if (!document) return;
+    async (documentId: string, format: AnalysisExportFormat) => {
       try {
-        const artifact = await window.api.codeAnalysis.exportDocument(document.id, format);
+        const artifact = await window.api.codeAnalysis.exportDocument(documentId, format);
         const saved = await window.api.dialog.saveFile({
           defaultFileName: artifact.defaultFileName,
           content: artifact.content,
@@ -1112,7 +1111,7 @@ export default function CodeAnalysisWorkbench() {
         setStatus(error instanceof Error ? error.message : text.exportFailed);
       }
     },
-    [document, text.exportFailed, text.exportedTo],
+    [text.exportFailed, text.exportedTo],
   );
 
   const activeBranch = branches.find((branch) => branch.id === activeBranchId);
@@ -1212,13 +1211,6 @@ export default function CodeAnalysisWorkbench() {
           onRestoreSession={(sessionId) => void restoreSession(sessionId)}
           onDeleteSession={(sessionId) => void deleteSession(sessionId)}
         />
-        <ExportMenu
-          disabled={!document}
-          markdownLabel={text.exportMarkdown}
-          jsonLabel={text.exportJson}
-          onExportMarkdown={() => void handleExport('markdown')}
-          onExportJson={() => void handleExport('json')}
-        />
       </section>
 
       <section className={styles.centerPanel} ref={setReaderViewport}>
@@ -1283,6 +1275,16 @@ export default function CodeAnalysisWorkbench() {
                   <article className={styles.userMessage} aria-label={text.you}>
                     {message.content}
                   </article>
+                  {message.state === 'complete' && message.documentId ? (
+                    <ReplyActions
+                      disabled={isRunning || session?.status === 'archived'}
+                      labels={{ copy: '复制', checkout: '回退', fork: text.branch, export: '导出', exportMarkdown: text.exportMarkdown, exportJson: text.exportJson }}
+                      onCopy={() => void navigator.clipboard?.writeText(message.content)}
+                      onCheckout={() => { const turn = turns.find((item) => item.id === message.documentId); if (turn) void checkoutTurn(turn); }}
+                      onFork={() => void forkSession(message.documentId!)}
+                      onExport={(format) => void handleExport(message.documentId!, format)}
+                    />
+                  ) : null}
                 </div>
               ) : (
                 <div className={`${styles.messageRow} ${styles.assistantMessageRow}`} key={message.id}>
