@@ -175,7 +175,7 @@ describe('ConversationTimeline', () => {
   });
 
   // 5. 从此创建分支
-  it('shows "branch from here" button for non-last turns', () => {
+  it('shows "branch from here" button for every turn', () => {
     render(
       <ConversationTimeline
         turns={sampleTurns}
@@ -185,7 +185,7 @@ describe('ConversationTimeline', () => {
     );
 
     const forkButtons = screen.getAllByRole('button', { name: /branch from here/i });
-    expect(forkButtons).toHaveLength(2);
+    expect(forkButtons).toHaveLength(3);
   });
 
   it('calls onForkFromTurn when branch-from-here is clicked', async () => {
@@ -204,14 +204,10 @@ describe('ConversationTimeline', () => {
     await user.click(forkButtons[1]);
 
     expect(onForkFromTurn).toHaveBeenCalledTimes(1);
-    expect(onForkFromTurn).toHaveBeenCalledWith(
-      'session-1',
-      'branch-main',
-      sampleTurns[1].id,
-    );
+    expect(onForkFromTurn).toHaveBeenCalledWith(sampleTurns[1].id);
   });
 
-  it('hides branch-from-here button for the last turn', () => {
+  it('shows branch-from-here button for the last turn', () => {
     render(
       <ConversationTimeline
         turns={sampleTurns}
@@ -222,8 +218,7 @@ describe('ConversationTimeline', () => {
 
     const items = screen.getAllByRole('listitem');
     const lastItem = items[items.length - 1];
-    const forkInLast = within(lastItem).queryByRole('button', { name: /branch from here/i });
-    expect(forkInLast).toBeNull();
+    expect(within(lastItem).getByRole('button', { name: /branch from here/i })).toBeInTheDocument();
   });
 
   // 6. 分支切换

@@ -34,7 +34,8 @@ export interface ConversationTimelineProps {
   branches?: AnalysisBranch[];
   onSelectTurn?: (turn: AnalysisTurn) => void;
   onCheckoutTurn?: (sessionId: string, branchId: string, documentId: string) => void;
-  onForkFromTurn?: (sessionId: string, branchId: string, documentId: string) => void;
+  onForkFromTurn?: (documentId: string) => void;
+  forkDisabled?: boolean;
   onSwitchBranch?: (sessionId: string, branchId: string) => void;
   onRenameBranch?: (sessionId: string, branchId: string, name: string) => void;
   language?: Language;
@@ -67,6 +68,7 @@ export function ConversationTimeline({
   onSelectTurn,
   onCheckoutTurn,
   onForkFromTurn,
+  forkDisabled = false,
   onSwitchBranch,
   onRenameBranch,
   language = 'zh-CN',
@@ -94,9 +96,9 @@ export function ConversationTimeline({
 
   const handleForkFromTurn = useCallback(
     (turn: AnalysisTurn) => {
-      onForkFromTurn?.(sessionId, turn.branchId, turn.parentDocumentId ?? turn.id);
+      onForkFromTurn?.(turn.id);
     },
-    [onForkFromTurn, sessionId],
+    [onForkFromTurn],
   );
 
   const handleBranchSelect = useCallback(
@@ -244,10 +246,10 @@ export function ConversationTimeline({
                 )}
               </div>
 
-              {/* Action buttons for non-last turns */}
-              {!isLast && (
+              {/* Checkout only applies to history; an independent session can start at any turn. */}
+              {((!isLast && onCheckoutTurn) || onForkFromTurn) && (
                 <div className={styles.timelineActions}>
-                  {onCheckoutTurn && (
+                  {!isLast && onCheckoutTurn && (
                     <button
                       type="button"
                       className={styles.timelineActionBtn}
@@ -266,6 +268,7 @@ export function ConversationTimeline({
                       type="button"
                       className={styles.timelineActionBtn}
                       onClick={() => handleForkFromTurn(turn)}
+                      disabled={forkDisabled}
                       aria-label={t.branchFromHere}
                       title={t.branchFromHere}
                     >
