@@ -641,6 +641,16 @@
   gap: var(--md-sys-spacing-sm);
 }
 
+.replyActions { display: flex; gap: 4px; margin-top: 8px; align-items: center; }
+.replyActionButton { width: 36px; min-width: 36px; height: 36px; border: 0; border-radius: 50%; background: transparent; color: var(--md-sys-color-on-surface-variant); cursor: pointer; }
+.replyActionButton:hover { background: var(--md-sys-color-surface-container-high); }
+.replyActionButton:focus-visible { outline: 2px solid var(--md-sys-color-primary); outline-offset: 2px; }
+.replyActionButton:disabled { cursor: not-allowed; opacity: .45; }
+.replyExport { position: relative; }
+.replyExportMenu { position: absolute; z-index: 2; left: 0; top: 40px; min-width: 144px; padding: 4px; border: 1px solid var(--md-sys-color-outline-variant); border-radius: 8px; background: var(--md-sys-color-surface-container); box-shadow: var(--md-sys-elevation-level2); }
+.replyExportMenu button { display: block; width: 100%; border: 0; border-radius: 4px; padding: 8px 10px; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.replyExportMenu button:hover, .replyExportMenu button:focus-visible { background: var(--md-sys-color-surface-container-high); }
+
 .commentComposer {
   display: flex;
   flex-direction: column;
