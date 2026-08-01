@@ -482,6 +482,31 @@ describe('AnalysisSessionService', () => {
       ).rejects.toThrow(/INVALID_OWNERSHIP/);
       expect(sessionRowCount(db)).toBe(2);
     });
+
+    it('rejects forks from an archived source session', async () => {
+      const { sessionId, documentId } = insertSession(db, { status: 'archived' });
+
+      await expect(
+        service.forkAsIndependentSession({ sessionId, documentId }),
+      ).rejects.toThrow(/SESSION_ARCHIVED/);
+    });
+
+    it('rolls back all copied records when cloning a document fails', async () => {
+      const { sessionId, documentId } = insertSession(db);
+      db.db.exec(`
+        CREATE TRIGGER fail_cloned_document
+        BEFORE INSERT ON analysis_documents
+        WHEN NEW.session_id <> '${sessionId}'
+        BEGIN
+          SELECT RAISE(ABORT, 'clone insertion rejected');
+        END;
+      `);
+
+      await expect(
+        service.forkAsIndependentSession({ sessionId, documentId }),
+      ).rejects.toThrow('clone insertion rejected');
+      expect(sessionRowCount(db)).toBe(1);
+    });
   });
 
 
@@ -636,6 +661,30 @@ describe('AnalysisSessionService', () => {
       await service.deletePermanently(sessionId, true);
 
       expect(mockCleanup.processPending).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps cleanup pending when no cleanup processor is configured', async () => {
+      const { sessionId } = insertSession(db);
+      const serviceWithoutCleanup = new AnalysisSessionService(db);
+
+      await expect(serviceWithoutCleanup.deletePermanently(sessionId, true)).resolves.toEqual({
+        cleanupPending: true,
+      });
+    });
+
+    it('rolls back the session deletion when cleanup queue insertion fails', async () => {
+      const { sessionId, documentId } = insertSession(db);
+      const now = new Date().toISOString();
+      db.db
+        .prepare(
+          `INSERT INTO analysis_file_cleanup_queue
+             (id, document_id, relative_path, attempts, last_error, created_at, updated_at)
+           VALUES (?, ?, ?, 0, NULL, ?, ?)`,
+        )
+        .run(`cleanup-${documentId}`, documentId, 'existing-path', now, now);
+
+      await expect(service.deletePermanently(sessionId, true)).rejects.toThrow();
+      expect(sessionRowCount(db)).toBe(1);
     });
   });
 });
