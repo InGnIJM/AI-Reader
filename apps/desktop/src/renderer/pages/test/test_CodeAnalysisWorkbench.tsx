@@ -166,6 +166,17 @@ describe('CodeAnalysisWorkbench', () => {
     };
   });
 
+  it('renders the integrated title bar with the current local-session context', async () => {
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
+
+    const navigation = await screen.findByRole('navigation', { name: 'Current context' });
+    expect(screen.getByText('AI Reader')).toBeInTheDocument();
+    expect(within(navigation).getByText('Workspace')).toBeInTheDocument();
+    expect(within(navigation).getByText('No project')).toBeInTheDocument();
+    expect(within(navigation).getByText('New session')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /switch to light theme/i })).toBeInTheDocument();
+  });
+
   it('runs analysis from the bottom prompt and renders Markdown with trace status', async () => {
     const user = userEvent.setup();
     render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);

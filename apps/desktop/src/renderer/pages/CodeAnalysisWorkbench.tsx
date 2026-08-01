@@ -19,7 +19,9 @@ import {
   ToolTraceTimeline,
 } from '../components/code-analysis';
 import type { AnalysisAnnotationItem, ToolTraceItem } from '../components/code-analysis';
+import AppTitleBar from '../components/common/AppTitleBar';
 import type { AnnotationDef, SourceSelectionRange } from '../components/common/MarkdownRenderer';
+import ThemeToggle from '../components/common/ThemeToggle';
 import componentStyles from '../components/code-analysis/CodeAnalysisComponents.module.css';
 import { codeAnalysisText } from './code-analysis-i18n';
 import type { AppLanguage } from './code-analysis-i18n';
@@ -1113,8 +1115,42 @@ export default function CodeAnalysisWorkbench() {
     [document, text.exportFailed, text.exportedTo],
   );
 
+  const activeBranch = branches.find((branch) => branch.id === activeBranchId);
+  const contextBreadcrumbs = [
+    {
+      id: 'workspace' as const,
+      label: text.contextWorkspace,
+      onNavigate: () => startSessionDraft(null),
+    },
+    ...(project
+      ? [{ id: 'project' as const, label: project.name, onNavigate: () => startSessionDraft(project) }]
+      : [{ id: 'project' as const, label: text.contextLocal, onNavigate: () => startSessionDraft(null) }]),
+    {
+      id: 'session' as const,
+      label: session?.title ?? text.contextNewSession,
+      current: !activeBranch,
+    },
+    ...(activeBranch
+      ? [{ id: 'branch' as const, label: activeBranch.name, current: true }]
+      : []),
+  ];
+
   return (
     <main className={styles.workbench}>
+      <AppTitleBar
+        appName={text.appName}
+        tagline={text.appTagline}
+        navigationLabel={text.contextNavigation}
+        breadcrumbs={contextBreadcrumbs}
+        actions={
+          <ThemeToggle
+            labels={{
+              toWhite: text.switchToWhiteTheme,
+              toBlackGold: text.switchToBlackGoldTheme,
+            }}
+          />
+        }
+      />
       <section className={styles.leftPanel}>
         <ProjectSidebar
           projects={projects}
