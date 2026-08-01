@@ -372,17 +372,15 @@ describe('AnnotationSidebar accessibility', () => {
 // ── Delete ───────────────────────────────────────────────────────────────────
 
 describe('AnnotationSidebar delete', () => {
-  it('renders a labelled destructive action instead of an icon-only delete control', () => {
+  it('renders a compact icon-only delete control with an accessible label', () => {
     const annotations = [makeAnnotation({ id: 'ann-1' })];
 
     renderSidebar({ annotations, onDelete: vi.fn() });
 
     const deleteButton = screen.getByRole('button', { name: 'Delete' });
-    expect(deleteButton).toHaveTextContent('Delete');
     expect(deleteButton).toHaveAttribute('title', 'Delete');
-    expect(deleteButton.querySelector('.material-symbols-rounded')).toHaveTextContent(
-      'delete_outline',
-    );
+    expect(deleteButton).toHaveTextContent('delete_outline');
+    expect(deleteButton.querySelector('[class*="deleteAnnotationLabel"]')).not.toBeInTheDocument();
   });
 
   it('requires confirmation before deleting an annotation', () => {
