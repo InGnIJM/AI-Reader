@@ -760,6 +760,12 @@ describe('CodeAnalysisWorkbench', () => {
 
     const deleteBtn = await screen.findByTestId('annotation-delete-ann-del');
     await user.click(deleteBtn);
+    expect(window.api.codeAnalysis.deleteAnnotation).not.toHaveBeenCalled();
+    await user.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', {
+        name: 'Delete permanently',
+      }),
+    );
 
     await waitFor(() =>
       expect(window.api.codeAnalysis.deleteAnnotation).toHaveBeenCalledWith('ann-del'),
@@ -1732,7 +1738,7 @@ describe('CodeAnalysisWorkbench', () => {
     await waitFor(() =>
       expect(card.querySelector('[aria-expanded]')).toHaveAttribute('aria-expanded', 'true'),
     );
-    expect(scrollSpy).toHaveBeenCalledWith({ block: 'nearest', behavior: 'smooth' });
+    expect(scrollSpy).toHaveBeenCalledWith({ block: 'start', behavior: 'smooth' });
     expect(card.querySelector('[aria-expanded]')).toHaveFocus();
     delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
   });
@@ -2182,7 +2188,10 @@ describe('CodeAnalysisWorkbench', () => {
       static instances: MockIntersectionObserver[] = [];
       readonly targets = new Set<Element>();
 
-      constructor(private readonly callback: IntersectionObserverCallback) {
+      constructor(
+        private readonly callback: IntersectionObserverCallback,
+        readonly options?: IntersectionObserverInit,
+      ) {
         MockIntersectionObserver.instances.push(this);
       }
 
@@ -2253,6 +2262,7 @@ describe('CodeAnalysisWorkbench', () => {
     const observer = MockIntersectionObserver.instances.find((item) =>
       item.targets.has(secondDocument),
     )!;
+    expect(observer.options?.root).toBe(document.querySelector('[role="log"]')?.closest('section'));
     act(() => observer.emit(secondDocument));
 
     await waitFor(() =>
