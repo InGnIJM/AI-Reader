@@ -31,6 +31,8 @@ export interface AnnotationSidebarProps {
   onViewSource?: (annotationId: string) => void;
   /** Called when the user deletes an annotation. */
   onDelete?: (annotationId: string) => void;
+  /** Visible and accessible label for the destructive delete action. */
+  deleteLabel?: string;
   /** Label for the "view source" affordance; defaults to a hardcoded Chinese label. */
   viewSourceLabel?: string;
   emptyLabel?: string;
@@ -43,6 +45,7 @@ export function AnnotationSidebar({
   onActivate,
   onViewSource,
   onDelete,
+  deleteLabel = 'Delete',
   viewSourceLabel,
   emptyLabel = 'No comments yet.',
   statusLabels,
@@ -55,12 +58,19 @@ export function AnnotationSidebar({
   // must only happen for newly appearing annotations; once the user manually
   // collapses a card, later annotation/active changes must not reopen it.
   const autoExpandedRef = useRef<Set<string>>(new Set());
+  const manuallyCollapsedRef = useRef<Set<string>>(new Set());
+  const cardRefs = useRef(new Map<string, HTMLElement>());
+  const headerRefs = useRef(new Map<string, HTMLDivElement>());
 
   // Auto-expand the currently active annotation and newly answered annotations.
   useEffect(() => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
-      if (activeAnnotationId && !next.has(activeAnnotationId)) {
+      if (
+        activeAnnotationId &&
+        !next.has(activeAnnotationId) &&
+        !manuallyCollapsedRef.current.has(activeAnnotationId)
+      ) {
         next.add(activeAnnotationId);
       }
       for (const annotation of annotations) {
@@ -78,14 +88,26 @@ export function AnnotationSidebar({
     });
   }, [activeAnnotationId, annotations]);
 
+  useEffect(() => {
+    if (!activeAnnotationId) return;
+    const card = cardRefs.current.get(activeAnnotationId);
+    const header = headerRefs.current.get(activeAnnotationId);
+    if (typeof card?.scrollIntoView === 'function') {
+      card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+    header?.focus({ preventScroll: true });
+  }, [activeAnnotationId]);
+
   const toggleExpand = useCallback(
     (annotationId: string) => {
       setExpandedIds((prev) => {
         const next = new Set(prev);
         if (next.has(annotationId)) {
           next.delete(annotationId);
+          manuallyCollapsedRef.current.add(annotationId);
         } else {
           next.add(annotationId);
+          manuallyCollapsedRef.current.delete(annotationId);
         }
         return next;
       });
@@ -102,7 +124,14 @@ export function AnnotationSidebar({
         annotations.map((annotation) => {
           const isExpanded = expandedIds.has(annotation.id);
           return (
-            <article className={styles.annotationItem} key={annotation.id}>
+            <article
+              className={styles.annotationItem}
+              key={annotation.id}
+              ref={(element) => {
+                if (element) cardRefs.current.set(annotation.id, element);
+                else cardRefs.current.delete(annotation.id);
+              }}
+            >
               {onDelete && (
                 <button
                   type="button"
@@ -111,15 +140,20 @@ export function AnnotationSidebar({
                     e.stopPropagation();
                     onDelete(annotation.id);
                   }}
-                  aria-label="删除批注"
-                  title="删除批注"
+                  aria-label={deleteLabel}
+                  title={deleteLabel}
                   data-testid={`annotation-delete-${annotation.id}`}
                 >
-                  <span className="material-symbols-rounded">close</span>
+                  <span className="material-symbols-rounded" aria-hidden="true">delete</span>
+                  <span className={styles.deleteAnnotationLabel}>{deleteLabel}</span>
                 </button>
               )}
               <div
                 className={styles.annotationHeader}
+                ref={(element) => {
+                  if (element) headerRefs.current.set(annotation.id, element);
+                  else headerRefs.current.delete(annotation.id);
+                }}
                 role="button"
                 tabIndex={0}
                 aria-expanded={isExpanded}

@@ -153,6 +153,27 @@ describe('AnnotationSidebar manual toggle', () => {
     const headerAfter = screen.getByText('answered text').closest('[aria-expanded]')!;
     expect(headerAfter).toHaveAttribute('aria-expanded', 'false');
   });
+
+  it('keeps an answered card collapsed when it becomes active after the first collapse', () => {
+    const answered = makeAnnotation({
+      id: 'ann-first-collapse',
+      anchorExactText: 'first collapse text',
+      status: 'answered',
+      messages: [{ id: 'm1', role: 'assistant', content: 'AI reply' }],
+    });
+    const { rerender } = render(<AnnotationSidebar annotations={[answered]} />);
+
+    const header = screen.getByText('first collapse text').closest('[aria-expanded]')!;
+    expect(header).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.click(header);
+    rerender(<AnnotationSidebar annotations={[answered]} activeAnnotationId={answered.id} />);
+
+    expect(screen.getByText('first collapse text').closest('[aria-expanded]')).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+  });
 });
 
 // ── Collapsed Header Content ─────────────────────────────────────────────────
@@ -339,6 +360,16 @@ describe('AnnotationSidebar accessibility', () => {
 // ── Delete ───────────────────────────────────────────────────────────────────
 
 describe('AnnotationSidebar delete', () => {
+  it('renders a labelled destructive action instead of an icon-only delete control', () => {
+    const annotations = [makeAnnotation({ id: 'ann-1' })];
+
+    renderSidebar({ annotations, onDelete: vi.fn() });
+
+    const deleteButton = screen.getByRole('button', { name: 'Delete' });
+    expect(deleteButton).toHaveTextContent('Delete');
+    expect(deleteButton).toHaveAttribute('title', 'Delete');
+  });
+
   it('should call onDelete when the delete button is clicked', () => {
     const onDelete = vi.fn();
     const annotations = [makeAnnotation({ id: 'ann-1' })];
