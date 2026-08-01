@@ -28,6 +28,11 @@ function renderWithProvider() {
 beforeEach(() => {
   window.localStorage.clear();
   delete document.documentElement.dataset.theme;
+  (window as any).api = {
+    system: {
+      setTitleBarOverlay: vi.fn(async () => undefined),
+    },
+  };
 });
 
 afterEach(() => {
@@ -39,6 +44,7 @@ describe('ThemeContext', () => {
     renderWithProvider();
     expect(screen.getByTestId('theme-value')).toHaveTextContent('black-gold');
     expect(document.documentElement.dataset.theme).toBe('black-gold');
+    expect(window.api.system.setTitleBarOverlay).toHaveBeenCalledWith('black-gold');
   });
 
   it('restores the persisted white theme from localStorage', () => {

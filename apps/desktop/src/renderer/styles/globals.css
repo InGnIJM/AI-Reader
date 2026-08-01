@@ -64,22 +64,22 @@
 :root,
 [data-theme='white'] {
   /* Primary */
-  --md-sys-color-primary: #1d5fd6;
+  --md-sys-color-primary: #285f8f;
   --md-sys-color-on-primary: #ffffff;
-  --md-sys-color-primary-container: #dce8ff;
-  --md-sys-color-on-primary-container: #0b2f73;
+  --md-sys-color-primary-container: #d9e7f2;
+  --md-sys-color-on-primary-container: #163c5d;
 
   /* Secondary */
-  --md-sys-color-secondary: #4d5c7a;
+  --md-sys-color-secondary: #62706e;
   --md-sys-color-on-secondary: #ffffff;
-  --md-sys-color-secondary-container: #dbe4f6;
-  --md-sys-color-on-secondary-container: #16233c;
+  --md-sys-color-secondary-container: #dde5e1;
+  --md-sys-color-on-secondary-container: #263331;
 
   /* Tertiary */
-  --md-sys-color-tertiary: #6d5a7d;
+  --md-sys-color-tertiary: #7a6755;
   --md-sys-color-on-tertiary: #ffffff;
-  --md-sys-color-tertiary-container: #f4e0ff;
-  --md-sys-color-on-tertiary-container: #2a1738;
+  --md-sys-color-tertiary-container: #efe4d8;
+  --md-sys-color-on-tertiary-container: #3d2b1e;
 
   /* Error */
   --md-sys-color-error: #c03535;
@@ -88,47 +88,47 @@
   --md-sys-color-on-error-container: #5c1111;
 
   /* Surface */
-  --md-sys-color-surface: #f7f9fc;
-  --md-sys-color-on-surface: #191d26;
-  --md-sys-color-surface-variant: #e9eef6;
-  --md-sys-color-on-surface-variant: #5b6474;
-  --md-sys-color-surface-container-lowest: #ffffff;
-  --md-sys-color-surface-container-low: #f1f4f9;
-  --md-sys-color-surface-container: #e9eef6;
-  --md-sys-color-surface-container-high: #dfe6f1;
-  --md-sys-color-surface-container-highest: #d4dcea;
+  --md-sys-color-surface: #f2f1ed;
+  --md-sys-color-on-surface: #202523;
+  --md-sys-color-surface-variant: #e9e9e4;
+  --md-sys-color-on-surface-variant: #68716f;
+  --md-sys-color-surface-container-lowest: #fbfaf7;
+  --md-sys-color-surface-container-low: #f4f2ee;
+  --md-sys-color-surface-container: #e9e9e4;
+  --md-sys-color-surface-container-high: #dfdfd9;
+  --md-sys-color-surface-container-highest: #d5d5ce;
 
   /* Outline */
-  --md-sys-color-outline: #97a1b3;
-  --md-sys-color-outline-variant: #d9e0eb;
+  --md-sys-color-outline: #89928f;
+  --md-sys-color-outline-variant: #deded7;
 
   /* Inverse */
-  --md-sys-color-inverse-surface: #22262e;
-  --md-sys-color-inverse-on-surface: #f2f5fa;
+  --md-sys-color-inverse-surface: #282d2b;
+  --md-sys-color-inverse-on-surface: #f5f3ee;
 
   /* ---------- 语义扩展：辅色（蓝） ---------- */
-  --md-sys-color-accent-strong: #1248a8;
-  --md-sys-color-accent-soft: rgba(29, 95, 214, 0.08);
-  --md-sys-color-accent-border: rgba(29, 95, 214, 0.35);
-  --md-sys-color-title-accent: #1248a8;
-  --md-sys-color-panel-border: #e2e8f2;
+  --md-sys-color-accent-strong: #1f507c;
+  --md-sys-color-accent-soft: rgba(40, 95, 143, 0.10);
+  --md-sys-color-accent-border: rgba(40, 95, 143, 0.38);
+  --md-sys-color-title-accent: #1f507c;
+  --md-sys-color-panel-border: #deded7;
 
   /* 用户气泡 */
-  --md-sys-color-user-bubble: #1d5fd6;
+  --md-sys-color-user-bubble: #285f8f;
   --md-sys-color-on-user-bubble: #ffffff;
   --md-sys-color-user-bubble-border: transparent;
 
   /* 批注高亮 */
-  --md-sys-color-mark: #ffefb8;
-  --md-sys-color-on-mark: #4a3a00;
+  --md-sys-color-mark: #e8dba8;
+  --md-sys-color-on-mark: #3b3215;
 
   /* 状态色 */
   --md-sys-color-success: #2e7d46;
   --md-sys-color-warning: #9a6b00;
 
   /* 代码 / 选中 */
-  --md-sys-color-code-bg: #f0f3f9;
-  --md-sys-color-selection: rgba(29, 95, 214, 0.18);
+  --md-sys-color-code-bg: #ecece6;
+  --md-sys-color-selection: rgba(40, 95, 143, 0.18);
 
   /* Elevation */
   --md-sys-elevation-1: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
@@ -141,10 +141,10 @@
    ============================================================ */
 [data-theme='black-gold'] {
   /* Primary */
-  --md-sys-color-primary: #c9a227;
-  --md-sys-color-on-primary: #241c05;
-  --md-sys-color-primary-container: #3d310f;
-  --md-sys-color-on-primary-container: #f2db8e;
+  --md-sys-color-primary: #d4af4f;
+  --md-sys-color-on-primary: #241d0d;
+  --md-sys-color-primary-container: #3c3217;
+  --md-sys-color-on-primary-container: #f4dda0;
 
   /* Secondary */
   --md-sys-color-secondary: #a89b7c;
@@ -165,30 +165,30 @@
   --md-sys-color-on-error-container: #f5c6c2;
 
   /* Surface */
-  --md-sys-color-surface: #0b0a08;
-  --md-sys-color-on-surface: #ede4ce;
-  --md-sys-color-surface-variant: #1c1912;
-  --md-sys-color-on-surface-variant: #a3937a;
-  --md-sys-color-surface-container-lowest: #100e0b;
-  --md-sys-color-surface-container-low: #16130e;
-  --md-sys-color-surface-container: #1c1912;
-  --md-sys-color-surface-container-high: #242017;
-  --md-sys-color-surface-container-highest: #2d2819;
+  --md-sys-color-surface: #080808;
+  --md-sys-color-on-surface: #f2ead8;
+  --md-sys-color-surface-variant: #171510;
+  --md-sys-color-on-surface-variant: #a69b89;
+  --md-sys-color-surface-container-lowest: #10100f;
+  --md-sys-color-surface-container-low: #11110f;
+  --md-sys-color-surface-container: #171510;
+  --md-sys-color-surface-container-high: #211e17;
+  --md-sys-color-surface-container-highest: #2b271e;
 
   /* Outline */
-  --md-sys-color-outline: #8a7a58;
-  --md-sys-color-outline-variant: #322b1b;
+  --md-sys-color-outline: #998a68;
+  --md-sys-color-outline-variant: #332b1c;
 
   /* Inverse */
   --md-sys-color-inverse-surface: #f0e7d0;
   --md-sys-color-inverse-on-surface: #241c05;
 
   /* ---------- 语义扩展：金 ---------- */
-  --md-sys-color-accent-strong: #e8c766;
-  --md-sys-color-accent-soft: rgba(201, 162, 39, 0.1);
-  --md-sys-color-accent-border: rgba(201, 162, 39, 0.4);
-  --md-sys-color-title-accent: #e8c766;
-  --md-sys-color-panel-border: rgba(201, 162, 39, 0.16);
+  --md-sys-color-accent-strong: #e8c86d;
+  --md-sys-color-accent-soft: rgba(212, 175, 79, 0.12);
+  --md-sys-color-accent-border: rgba(212, 175, 79, 0.42);
+  --md-sys-color-title-accent: #e8c86d;
+  --md-sys-color-panel-border: rgba(212, 175, 79, 0.18);
 
   /* 用户气泡：深铜底 + 金边 */
   --md-sys-color-user-bubble: #2a2110;
@@ -196,7 +196,7 @@
   --md-sys-color-user-bubble-border: #6e5820;
 
   /* 批注高亮：半透明金 */
-  --md-sys-color-mark: rgba(201, 162, 39, 0.32);
+  --md-sys-color-mark: rgba(212, 175, 79, 0.32);
   --md-sys-color-on-mark: #f7e9be;
 
   /* 状态色 */
@@ -205,7 +205,7 @@
 
   /* 代码 / 选中 */
   --md-sys-color-code-bg: #171410;
-  --md-sys-color-selection: rgba(201, 162, 39, 0.3);
+  --md-sys-color-selection: rgba(212, 175, 79, 0.3);
 
   /* Elevation */
   --md-sys-elevation-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);

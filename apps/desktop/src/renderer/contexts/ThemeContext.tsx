@@ -34,6 +34,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
+    void window.api?.system?.setTitleBarOverlay(theme).catch(() => undefined);
     try {
       window.localStorage.setItem(STORAGE_KEY, theme);
     } catch {
