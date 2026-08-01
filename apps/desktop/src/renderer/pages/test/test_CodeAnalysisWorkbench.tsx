@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CodeAnalysisWorkbench from '../CodeAnalysisWorkbench';
+import { ThemeProvider } from '../../contexts/ThemeContext';
 
 describe('CodeAnalysisWorkbench', () => {
   afterEach(() => {
@@ -167,7 +168,7 @@ describe('CodeAnalysisWorkbench', () => {
 
   it('runs analysis from the bottom prompt and renders Markdown with trace status', async () => {
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
 
     await user.click(screen.getByRole('button', { name: /select directory/i }));
     await user.type(screen.getByLabelText(/analysis goal/i), 'Explain startup');
@@ -219,7 +220,7 @@ describe('CodeAnalysisWorkbench', () => {
     ]);
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
 
     expect(await screen.findByRole('button', { name: 'Recent from second project' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Recent local session' })).toBeInTheDocument();
@@ -254,7 +255,7 @@ describe('CodeAnalysisWorkbench', () => {
     ]);
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
 
     await user.click(await screen.findByRole('button', { name: 'Fixture' }));
 
@@ -271,7 +272,7 @@ describe('CodeAnalysisWorkbench', () => {
 
   it('counts a multi-turn project session only once', async () => {
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
 
     await user.click(await screen.findByRole('button', { name: 'Fixture' }));
     const prompt = screen.getByLabelText(/analysis goal/i);
@@ -325,7 +326,7 @@ describe('CodeAnalysisWorkbench', () => {
     });
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     await user.type(await screen.findByLabelText(/analysis goal/i), 'Write a design note');
     await user.keyboard('{Enter}');
 
@@ -345,7 +346,7 @@ describe('CodeAnalysisWorkbench', () => {
     (window.api.codeAnalysis.runTurn as ReturnType<typeof vi.fn>).mockReturnValue(pendingRun);
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
 
     await user.click(screen.getByRole('button', { name: /select directory/i }));
     const prompt = screen.getByLabelText(/analysis goal/i);
@@ -470,7 +471,7 @@ describe('CodeAnalysisWorkbench', () => {
       });
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     await user.click(screen.getByRole('button', { name: /select directory/i }));
 
     const prompt = screen.getByLabelText(/analysis goal/i);
@@ -546,7 +547,7 @@ describe('CodeAnalysisWorkbench', () => {
     );
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     await user.click(screen.getByRole('button', { name: /select directory/i }));
     await user.type(screen.getByLabelText(/analysis goal/i), 'Explain startup');
     await user.keyboard('{Enter}');
@@ -608,7 +609,7 @@ describe('CodeAnalysisWorkbench', () => {
     });
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     await user.click(screen.getByRole('button', { name: /select directory/i }));
     await user.type(screen.getByLabelText(/analysis goal/i), 'Explain docs');
     await user.keyboard('{Enter}');
@@ -674,7 +675,7 @@ describe('CodeAnalysisWorkbench', () => {
     });
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     await user.click(screen.getByRole('button', { name: /select directory/i }));
     await user.type(screen.getByLabelText(/analysis goal/i), 'Explain docs');
     await user.keyboard('{Enter}');
@@ -764,7 +765,7 @@ describe('CodeAnalysisWorkbench', () => {
     );
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     await user.click(screen.getByRole('button', { name: /select directory/i }));
     await user.type(screen.getByLabelText(/analysis goal/i), 'Explain');
     await user.keyboard('{Enter}');
@@ -852,7 +853,7 @@ describe('CodeAnalysisWorkbench', () => {
     ]);
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
 
     await user.click(await screen.findByRole('button', { name: 'What is pnpm monorepo?' }));
 
@@ -911,7 +912,7 @@ describe('CodeAnalysisWorkbench', () => {
     });
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
 
     await user.click(await screen.findByRole('button', { name: 'What is pnpm monorepo?' }));
     const heading = await screen.findByRole('heading', { name: 'pnpm monorepo' });
@@ -974,7 +975,7 @@ describe('CodeAnalysisWorkbench', () => {
     });
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
 
     await user.click(await screen.findByRole('button', { name: 'Multi-turn analysis' }));
 
@@ -1030,7 +1031,7 @@ describe('CodeAnalysisWorkbench', () => {
     });
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     await user.click(await screen.findByRole('button', { name: 'Multi-turn analysis' }));
 
     const firstAnswer = await screen.findByRole('heading', { name: 'First answer' });
@@ -1059,7 +1060,7 @@ describe('CodeAnalysisWorkbench', () => {
 
   it('persists the language choice and switches the code analysis interface', async () => {
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
 
     const languageSelect = await screen.findByRole('combobox', { name: /language/i });
     expect(languageSelect).toHaveValue('en-US');
@@ -1075,7 +1076,7 @@ describe('CodeAnalysisWorkbench', () => {
     (window.api.codeAnalysis.listProjects as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error('Unable to load projects'),
     );
-    const { unmount } = render(<CodeAnalysisWorkbench />);
+    const { unmount } = render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     expect(await screen.findByText('Unable to load projects')).toBeInTheDocument();
     unmount();
 
@@ -1084,7 +1085,7 @@ describe('CodeAnalysisWorkbench', () => {
       new Error('Provider unavailable'),
     );
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     await user.click(screen.getByRole('button', { name: /select directory/i }));
     await user.type(screen.getByLabelText(/analysis goal/i), 'Explain startup');
     await user.keyboard('{Enter}');
@@ -1102,7 +1103,7 @@ describe('CodeAnalysisWorkbench', () => {
       typeof vi.fn
     >;
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
 
     await user.click(screen.getByRole('button', { name: /select directory/i }));
     await user.type(screen.getByLabelText(/analysis goal/i), 'Explain startup');
@@ -1118,7 +1119,7 @@ describe('CodeAnalysisWorkbench', () => {
 
   it('clears the selected text when a new turn runs', async () => {
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
 
     await user.click(screen.getByRole('button', { name: /select directory/i }));
     await user.type(screen.getByLabelText(/analysis goal/i), 'First analysis');
@@ -1154,7 +1155,7 @@ describe('CodeAnalysisWorkbench', () => {
       new Error('Unable to save language'),
     );
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     const languageSelect = await screen.findByRole('combobox', { name: /language/i });
 
     await user.selectOptions(languageSelect, 'zh-CN');
@@ -1182,7 +1183,7 @@ describe('CodeAnalysisWorkbench', () => {
       ]);
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     await user.click(screen.getByRole('button', { name: /select directory/i }));
     await user.type(screen.getByLabelText(/analysis goal/i), 'Explain startup');
     await user.keyboard('{Enter}');
@@ -1248,7 +1249,7 @@ describe('CodeAnalysisWorkbench', () => {
     );
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     await user.click(await screen.findByRole('button', { name: 'First project' }));
     await user.click(screen.getByRole('button', { name: 'Second project' }));
     expect(await screen.findByRole('button', { name: 'Second project conversation' })).toBeInTheDocument();
@@ -1297,7 +1298,7 @@ describe('CodeAnalysisWorkbench', () => {
     );
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     await user.click(await screen.findByRole('button', { name: 'Fixture' }));
     await user.click(screen.getByRole('button', { name: 'Archived' }));
 
@@ -1350,7 +1351,7 @@ describe('CodeAnalysisWorkbench', () => {
     );
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     await user.click(await screen.findByRole('button', { name: 'No Project' }));
     expect(
       (await screen.findAllByRole('button', { name: 'Active fallback session' })).length,
@@ -1381,7 +1382,7 @@ describe('CodeAnalysisWorkbench', () => {
     );
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     const existingProject = await screen.findByRole('button', { name: 'Existing project' });
     await user.click(screen.getByRole('button', { name: /select directory/i }));
     await user.click(existingProject);
@@ -1410,7 +1411,7 @@ describe('CodeAnalysisWorkbench', () => {
     (window.api.codeAnalysis.runTurn as ReturnType<typeof vi.fn>).mockReturnValue(pendingRun);
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     await user.click(screen.getByRole('button', { name: /select directory/i }));
     await user.type(screen.getByLabelText(/analysis goal/i), 'Slow analysis');
     await user.keyboard('{Enter}');
@@ -1461,7 +1462,7 @@ describe('CodeAnalysisWorkbench', () => {
   it('creates a new session on first turn via runTurn', async () => {
     (window.api.codeAnalysis.run as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
 
     await user.click(screen.getByRole('button', { name: /select directory/i }));
     await user.type(screen.getByLabelText(/analysis goal/i), 'Analyze project structure');
@@ -1480,7 +1481,7 @@ describe('CodeAnalysisWorkbench', () => {
 
   it('starts a project draft from the folder new-session action', async () => {
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
 
     await user.click(
       await screen.findByRole('button', { name: 'New Session: Fixture' }),
@@ -1574,7 +1575,7 @@ describe('CodeAnalysisWorkbench', () => {
       });
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     await user.click(screen.getByRole('button', { name: /select directory/i }));
 
     const prompt = screen.getByLabelText(/analysis goal/i);
@@ -1649,7 +1650,7 @@ describe('CodeAnalysisWorkbench', () => {
     });
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
 
     // Sessions should be visible in the left panel
     const sessionButton = await screen.findByRole('button', { name: 'Existing Session' });
@@ -1731,7 +1732,7 @@ describe('CodeAnalysisWorkbench', () => {
     ]);
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
 
     await user.click(await screen.findByRole('button', { name: 'Ann Session' }));
     await waitFor(() =>
@@ -1825,7 +1826,7 @@ describe('CodeAnalysisWorkbench', () => {
     ]);
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
 
     await user.click(await screen.findByRole('button', { name: 'Ann Session Two' }));
     await waitFor(() =>
@@ -1905,7 +1906,7 @@ describe('CodeAnalysisWorkbench', () => {
     });
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
 
     await user.click(await screen.findByRole('button', { name: 'Checkout Session' }));
 
@@ -1972,7 +1973,7 @@ describe('CodeAnalysisWorkbench', () => {
     });
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
 
     await user.click(await screen.findByRole('button', { name: 'Branch Session' }));
 
@@ -2035,7 +2036,7 @@ describe('CodeAnalysisWorkbench', () => {
     );
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
 
     await user.click(
       await screen.findByRole('button', { name: 'Manage session: Archive Session' }),
@@ -2109,7 +2110,7 @@ describe('CodeAnalysisWorkbench', () => {
     ]);
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
 
     await user.click(await screen.findByRole('button', { name: 'Original title' }));
     await user.click(
@@ -2171,7 +2172,7 @@ describe('CodeAnalysisWorkbench', () => {
     ]);
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     await user.click(await screen.findByRole('button', { name: 'Only session' }));
     await user.type(screen.getByLabelText('Analysis goal'), 'unsent draft');
     await user.click(
@@ -2265,7 +2266,7 @@ describe('CodeAnalysisWorkbench', () => {
     );
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     await user.click(await screen.findByRole('button', { name: 'Visible turns' }));
     expect(await screen.findByText('Second answer')).toBeInTheDocument();
 
@@ -2335,7 +2336,7 @@ describe('CodeAnalysisWorkbench', () => {
     (window.api.codeAnalysis.forkSession as ReturnType<typeof vi.fn>).mockResolvedValue(forkedSession);
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     await user.click(await screen.findByRole('button', { name: sourceSession.title }));
     await user.click(await screen.findByRole('button', { name: 'Create branch' }));
 
@@ -2374,7 +2375,7 @@ describe('CodeAnalysisWorkbench', () => {
     });
 
     const user = userEvent.setup();
-    render(<CodeAnalysisWorkbench />);
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
     await user.click(await screen.findByRole('button', { name: sourceSession.title }));
     await user.click((await screen.findAllByRole('button', { name: 'Branch from here' }))[0]);
 
