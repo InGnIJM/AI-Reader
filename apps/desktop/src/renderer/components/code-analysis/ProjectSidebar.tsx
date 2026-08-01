@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 import type { AnalysisSession, AnalysisSessionStatus } from '@ai-reader/shared';
 
-import ThemeToggle from '../common/ThemeToggle';
 import styles from './CodeAnalysisComponents.module.css';
 
 interface SidebarProject {
@@ -377,15 +376,6 @@ export function ProjectSidebar({
 
   return (
     <aside className={styles.projectSidebar}>
-      <div className={styles.brandRow}>
-        <span className={styles.brandMark}>
-          <span className="material-symbols-rounded" aria-hidden="true">
-            auto_stories
-          </span>
-        </span>
-        <span className={styles.brandName}>AI Reader</span>
-      </div>
-
       <button className={styles.primaryAction} type="button" onClick={onSelectDirectory}>
         <span className="material-symbols-rounded" aria-hidden="true">
           create_new_folder
@@ -587,7 +577,6 @@ export function ProjectSidebar({
             <option value="en-US">{labels.english}</option>
           </select>
         </label>
-        <ThemeToggle />
       </div>
 
       {sessionMenu ? (

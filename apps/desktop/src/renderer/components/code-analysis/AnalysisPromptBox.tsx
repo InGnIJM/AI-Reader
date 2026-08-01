@@ -34,8 +34,14 @@ export function AnalysisPromptBox({ value, disabled, labels, onChange, onSubmit 
           }
         }}
       />
-      <button type="button" onClick={onSubmit} disabled={disabled || !value.trim()}>
-        {text.submit}
+      <button
+        type="button"
+        onClick={onSubmit}
+        disabled={disabled || !value.trim()}
+        aria-label={text.submit}
+        title={text.submit}
+      >
+        <span className="material-symbols-rounded" aria-hidden="true">send</span>
       </button>
     </div>
   );
