@@ -10,7 +10,11 @@ import { contextBridge, ipcRenderer } from 'electron';
 // 延迟加载 shared 模块，捕获可能的加载错误
 let IPC_CHANNELS: any;
 try {
-  IPC_CHANNELS = require('@ai-reader/shared').IPC_CHANNELS;
+  const sharedIpcChannels = require('@ai-reader/shared').IPC_CHANNELS;
+  if (!sharedIpcChannels?.CODE_ANALYSIS_DELETE_ANNOTATION) {
+    throw new Error('Required IPC channels are unavailable');
+  }
+  IPC_CHANNELS = sharedIpcChannels;
 } catch (err) {
   console.error('[preload] Failed to load @ai-reader/shared:', err);
   // 使用硬编码的通道名称作为后备（与 IPC_CHANNELS 定义一致）
@@ -52,6 +56,7 @@ try {
     CODE_ANALYSIS_LIST_ANNOTATIONS: 'codeAnalysis:listAnnotations',
     CODE_ANALYSIS_LIST_ANNOTATION_MESSAGES: 'codeAnalysis:listAnnotationMessages',
     CODE_ANALYSIS_REPLY_TO_ANNOTATION: 'codeAnalysis:replyToAnnotation',
+    CODE_ANALYSIS_DELETE_ANNOTATION: 'codeAnalysis:deleteAnnotation',
     CODE_ANALYSIS_EXPORT_DOCUMENT: 'codeAnalysis:exportDocument',
     CODE_ANALYSIS_IMPORT_DOCUMENT: 'codeAnalysis:importDocument',
     CODE_ANALYSIS_LIST_SESSIONS: 'codeAnalysis:listSessions',
