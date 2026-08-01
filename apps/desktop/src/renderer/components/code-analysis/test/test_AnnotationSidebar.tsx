@@ -73,6 +73,18 @@ describe('AnnotationSidebar active annotation auto-expanded', () => {
     const collapsedItem = screen.getByText('second text').closest('article')!;
     expect(collapsedItem.querySelector('[aria-expanded]')).toHaveAttribute('aria-expanded', 'false');
   });
+
+  it('scrolls the activated annotation card to its beginning', () => {
+    const annotations = [makeAnnotation({ id: 'ann-scroll', anchorExactText: 'scroll target' })];
+    const { rerender } = renderSidebar({ annotations });
+    const card = screen.getByText('scroll target').closest('article')!;
+    const scrollIntoView = vi.fn();
+    Object.assign(card, { scrollIntoView });
+
+    rerender(<AnnotationSidebar annotations={annotations} activeAnnotationId="ann-scroll" />);
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start', behavior: 'smooth' });
+  });
 });
 
 // ── Collapsible: Default All Collapsed When No Active ────────────────────────
@@ -370,14 +382,20 @@ describe('AnnotationSidebar delete', () => {
     expect(deleteButton).toHaveAttribute('title', 'Delete');
   });
 
-  it('should call onDelete when the delete button is clicked', () => {
+  it('requires confirmation before deleting an annotation', () => {
     const onDelete = vi.fn();
     const annotations = [makeAnnotation({ id: 'ann-1' })];
 
     renderSidebar({ annotations, activeAnnotationId: 'ann-1', onDelete });
 
     fireEvent.click(screen.getByTestId('annotation-delete-ann-1'));
+    expect(onDelete).not.toHaveBeenCalled();
+
+    const dialog = screen.getByRole('alertdialog');
+    fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }));
+
     expect(onDelete).toHaveBeenCalledWith('ann-1');
+    expect(dialog).not.toBeInTheDocument();
   });
 
   it('should not render the delete button when onDelete is not provided', () => {

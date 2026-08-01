@@ -33,6 +33,12 @@ export interface AnnotationSidebarProps {
   onDelete?: (annotationId: string) => void;
   /** Visible and accessible label for the destructive delete action. */
   deleteLabel?: string;
+  /** Confirmation label shown before an annotation is permanently deleted. */
+  confirmDeleteLabel?: string;
+  /** Label that closes the annotation deletion confirmation dialog. */
+  cancelLabel?: string;
+  /** Explains the irreversible consequence of deleting an annotation. */
+  deleteWarningLabel?: string;
   /** Label for the "view source" affordance; defaults to a hardcoded Chinese label. */
   viewSourceLabel?: string;
   emptyLabel?: string;
@@ -46,6 +52,9 @@ export function AnnotationSidebar({
   onViewSource,
   onDelete,
   deleteLabel = 'Delete',
+  confirmDeleteLabel = 'Delete permanently',
+  cancelLabel = 'Cancel',
+  deleteWarningLabel = 'This permanently deletes the annotation and its discussion.',
   viewSourceLabel,
   emptyLabel = 'No comments yet.',
   statusLabels,
@@ -53,6 +62,7 @@ export function AnnotationSidebar({
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
     return activeAnnotationId ? new Set([activeAnnotationId]) : new Set();
   });
+  const [deletingAnnotation, setDeletingAnnotation] = useState<AnalysisAnnotationItem | null>(null);
 
   // IDs whose answered state has already auto-expanded once. Auto-expansion
   // must only happen for newly appearing annotations; once the user manually
@@ -93,7 +103,7 @@ export function AnnotationSidebar({
     const card = cardRefs.current.get(activeAnnotationId);
     const header = headerRefs.current.get(activeAnnotationId);
     if (typeof card?.scrollIntoView === 'function') {
-      card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      card.scrollIntoView({ block: 'start', behavior: 'smooth' });
     }
     header?.focus({ preventScroll: true });
   }, [activeAnnotationId]);
@@ -138,7 +148,7 @@ export function AnnotationSidebar({
                   className={styles.deleteAnnotationBtn}
                   onClick={(e) => {
                     e.stopPropagation();
-                    onDelete(annotation.id);
+                    setDeletingAnnotation(annotation);
                   }}
                   aria-label={deleteLabel}
                   title={deleteLabel}
@@ -221,6 +231,39 @@ export function AnnotationSidebar({
           );
         })
       )}
+      {deletingAnnotation ? (
+        <div className={styles.dialogBackdrop}>
+          <div
+            className={styles.confirmDialog}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-annotation-title"
+            aria-describedby="delete-annotation-description"
+          >
+            <p id="delete-annotation-title">
+              {confirmDeleteLabel}: {deletingAnnotation.selectedText ?? deletingAnnotation.anchorExactText}
+            </p>
+            <p className={styles.dialogDescription} id="delete-annotation-description">
+              {deleteWarningLabel}
+            </p>
+            <div className={styles.confirmActions}>
+              <button type="button" onClick={() => setDeletingAnnotation(null)}>
+                {cancelLabel}
+              </button>
+              <button
+                type="button"
+                data-variant="danger"
+                onClick={() => {
+                  onDelete?.(deletingAnnotation.id);
+                  setDeletingAnnotation(null);
+                }}
+              >
+                {confirmDeleteLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
