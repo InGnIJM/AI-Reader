@@ -43,6 +43,7 @@ export type {
   CodeAnalysisListRecentSessionsPayload,
   CodeAnalysisRenameSessionPayload,
   CodeAnalysisDeleteSessionPayload,
+  CodeAnalysisForkSessionPayload,
   CodeAnalysisRunTurnPayload,
   CodeAnalysisRunTurnResult,
   CodeAnalysisCheckoutTurnPayload,

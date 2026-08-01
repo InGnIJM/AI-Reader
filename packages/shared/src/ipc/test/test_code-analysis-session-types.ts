@@ -11,6 +11,7 @@ import type {
   CodeAnalysisAnnotationData,
   CodeAnalysisCheckoutTurnPayload,
   CodeAnalysisDeleteSessionPayload,
+  CodeAnalysisForkSessionPayload,
   CodeAnalysisListRecentSessionsPayload,
   CodeAnalysisListSessionsPayload,
   CodeAnalysisRenameBranchPayload,
@@ -115,6 +116,10 @@ describe('code analysis session contracts', () => {
       sessionId: session.id,
       confirmed: true,
     };
+    const forkSession: CodeAnalysisForkSessionPayload = {
+      sessionId: session.id,
+      documentId: turn.id,
+    };
     const switchBranch: CodeAnalysisSwitchBranchPayload = {
       sessionId: session.id,
       branchId: branch.id,
@@ -129,6 +134,7 @@ describe('code analysis session contracts', () => {
     expect(recent.limit).toBe(10);
     expect(renameSession.title).toBe('Renamed session');
     expect(deleteSession.confirmed).toBe(true);
+    expect(forkSession.documentId).toBe(turn.id);
     expect(renameBranch.name).toBe('Alternative');
   });
 
@@ -177,6 +183,7 @@ describe('code analysis session contracts', () => {
       archiveSession: IPC_CHANNELS.CODE_ANALYSIS_ARCHIVE_SESSION,
       restoreSession: IPC_CHANNELS.CODE_ANALYSIS_RESTORE_SESSION,
       deleteSession: IPC_CHANNELS.CODE_ANALYSIS_DELETE_SESSION,
+      forkSession: IPC_CHANNELS.CODE_ANALYSIS_FORK_SESSION,
       runTurn: IPC_CHANNELS.CODE_ANALYSIS_RUN_TURN,
       checkoutTurn: IPC_CHANNELS.CODE_ANALYSIS_CHECKOUT_TURN,
       listBranches: IPC_CHANNELS.CODE_ANALYSIS_LIST_BRANCHES,
@@ -190,6 +197,7 @@ describe('code analysis session contracts', () => {
       archiveSession: 'codeAnalysis:archiveSession',
       restoreSession: 'codeAnalysis:restoreSession',
       deleteSession: 'codeAnalysis:deleteSession',
+      forkSession: 'codeAnalysis:forkSession',
       runTurn: 'codeAnalysis:runTurn',
       checkoutTurn: 'codeAnalysis:checkoutTurn',
       listBranches: 'codeAnalysis:listBranches',
