@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, cleanup, within } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { ProjectSidebar } from '../ProjectSidebar';
+import { ThemeProvider } from '../../../contexts/ThemeContext';
 import type { AnalysisSession } from '@ai-reader/shared';
 
 afterEach(() => {
@@ -64,7 +65,11 @@ function renderSidebar(overrides: Record<string, unknown> = {}) {
     onSelectDocument: vi.fn(),
     onLanguageChange: vi.fn(),
   };
-  return render(<ProjectSidebar {...defaults} {...overrides} />);
+  return render(
+    <ThemeProvider>
+      <ProjectSidebar {...defaults} {...overrides} />
+    </ThemeProvider>,
+  );
 }
 
 // ── Session List Rendering ───────────────────────────────────────────────────
