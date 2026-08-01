@@ -67,6 +67,31 @@
   font-size: 13px;
 }
 
+.branchForkButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  margin-left: auto;
+  border: 0;
+  border-radius: 20px;
+  background: #2563eb;
+  color: #eff6ff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.branchForkButton:hover:not(:disabled) {
+  background: #3b82f6;
+}
+
+.branchForkButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .conversation {
   --md-sys-color-primary: #93c5fd;
   --md-sys-color-on-surface: #e2e8f0;

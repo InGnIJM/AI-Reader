@@ -89,6 +89,17 @@ describe('CodeAnalysisWorkbench', () => {
           updatedAt: new Date().toISOString(),
         })),
         deleteSession: vi.fn(async () => ({ cleanupPending: false })),
+        forkSession: vi.fn(async () => ({
+          id: 'session-fork',
+          title: 'Forked session',
+          status: 'active',
+          projectId: null,
+          activeBranchId: 'branch-fork',
+          activeDocumentId: 'turn-fork',
+          archivedAt: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })),
 
         // Turn and branch management
         runTurn: vi.fn(async (payload: any) => ({
@@ -2273,6 +2284,103 @@ describe('CodeAnalysisWorkbench', () => {
     Object.defineProperty(window, 'IntersectionObserver', {
       configurable: true,
       value: originalIntersectionObserver,
+    });
+  });
+
+  it('creates an independent session from the active conversation entry and selects it', async () => {
+    const sourceSession = {
+      id: 'session-source', title: 'Source conversation', status: 'active' as const,
+      projectId: null, activeBranchId: 'branch-source', activeDocumentId: 'turn-source-2',
+      archivedAt: null, createdAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-01T00:01:00.000Z',
+    };
+    const forkedSession = {
+      ...sourceSession,
+      id: 'session-forked', title: 'Source conversation · Branch', activeBranchId: 'branch-forked',
+      activeDocumentId: 'turn-forked',
+    };
+    (window.api.codeAnalysis.listRecentSessions as ReturnType<typeof vi.fn>).mockResolvedValue([sourceSession]);
+    (window.api.codeAnalysis.getSession as ReturnType<typeof vi.fn>).mockImplementation(
+      async (sessionId: string) => sessionId === sourceSession.id
+        ? {
+            session: sourceSession,
+            branches: [],
+            turns: [
+              {
+                id: 'turn-source-1', sessionId: sourceSession.id, branchId: 'branch-source',
+                parentDocumentId: null, goal: 'First source question', contentMarkdown: '# First source answer',
+                status: 'completed', toolCallCount: 0, createdAt: sourceSession.createdAt,
+                updatedAt: sourceSession.updatedAt,
+              },
+              {
+                id: 'turn-source-2', sessionId: sourceSession.id, branchId: 'branch-source',
+                parentDocumentId: 'turn-source-1', goal: 'Second source question', contentMarkdown: '# Second source answer',
+                status: 'completed', toolCallCount: 0, createdAt: sourceSession.updatedAt,
+                updatedAt: sourceSession.updatedAt,
+              },
+            ],
+          }
+        : {
+            session: forkedSession,
+            branches: [],
+            turns: [
+              {
+                id: 'turn-forked', sessionId: forkedSession.id, branchId: 'branch-forked',
+                parentDocumentId: null, goal: 'Forked question', contentMarkdown: '# Forked answer',
+                status: 'completed', toolCallCount: 0, createdAt: forkedSession.createdAt,
+                updatedAt: forkedSession.updatedAt,
+              },
+            ],
+          },
+    );
+    (window.api.codeAnalysis.forkSession as ReturnType<typeof vi.fn>).mockResolvedValue(forkedSession);
+
+    const user = userEvent.setup();
+    render(<CodeAnalysisWorkbench />);
+    await user.click(await screen.findByRole('button', { name: sourceSession.title }));
+    await user.click(await screen.findByRole('button', { name: 'Create branch' }));
+
+    expect(window.api.codeAnalysis.forkSession).toHaveBeenCalledWith({
+      sessionId: sourceSession.id,
+      documentId: sourceSession.activeDocumentId,
+    });
+    expect(await screen.findByText('Forked answer')).toBeInTheDocument();
+    expect(window.api.codeAnalysis.getSession).toHaveBeenCalledWith(forkedSession.id);
+  });
+
+  it('creates an independent session from every conversation turn entry', async () => {
+    const sourceSession = {
+      id: 'session-timeline', title: 'Timeline conversation', status: 'active' as const,
+      projectId: null, activeBranchId: 'branch-timeline', activeDocumentId: 'turn-timeline-2',
+      archivedAt: null, createdAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-01T00:01:00.000Z',
+    };
+    (window.api.codeAnalysis.listRecentSessions as ReturnType<typeof vi.fn>).mockResolvedValue([sourceSession]);
+    (window.api.codeAnalysis.getSession as ReturnType<typeof vi.fn>).mockResolvedValue({
+      session: sourceSession,
+      branches: [],
+      turns: [
+        {
+          id: 'turn-timeline-1', sessionId: sourceSession.id, branchId: 'branch-timeline',
+          parentDocumentId: null, goal: 'First timeline question', contentMarkdown: '# First timeline answer',
+          status: 'completed', toolCallCount: 0, createdAt: sourceSession.createdAt,
+          updatedAt: sourceSession.updatedAt,
+        },
+        {
+          id: 'turn-timeline-2', sessionId: sourceSession.id, branchId: 'branch-timeline',
+          parentDocumentId: 'turn-timeline-1', goal: 'Second timeline question', contentMarkdown: '# Second timeline answer',
+          status: 'completed', toolCallCount: 0, createdAt: sourceSession.updatedAt,
+          updatedAt: sourceSession.updatedAt,
+        },
+      ],
+    });
+
+    const user = userEvent.setup();
+    render(<CodeAnalysisWorkbench />);
+    await user.click(await screen.findByRole('button', { name: sourceSession.title }));
+    await user.click((await screen.findAllByRole('button', { name: 'Branch from here' }))[0]);
+
+    expect(window.api.codeAnalysis.forkSession).toHaveBeenCalledWith({
+      sessionId: sourceSession.id,
+      documentId: 'turn-timeline-1',
     });
   });
 });

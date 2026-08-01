@@ -13,6 +13,7 @@ import {
   AnalysisMarkdownViewer,
   AnalysisPromptBox,
   AnnotationSidebar,
+  ConversationTimeline,
   ExportMenu,
   ProjectSidebar,
   ToolTraceTimeline,
@@ -160,6 +161,7 @@ export default function CodeAnalysisWorkbench() {
   const [branches, setBranches] = useState<AnalysisBranch[]>([]);
   const [activeBranchId, setActiveBranchId] = useState<string | null>(null);
   const [turns, setTurns] = useState<AnalysisTurn[]>([]);
+  const [isForkingSession, setIsForkingSession] = useState(false);
 
   useEffect(() => {
     currentDocumentIdRef.current = document?.id;
@@ -272,6 +274,31 @@ export default function CodeAnalysisWorkbench() {
         ]),
       ),
     );
+  }, []);
+
+  const addSessionToVisibleCollections = useCallback((created: AnalysisSession) => {
+    setSessions((current) => [
+      created,
+      ...current.filter((candidate) => candidate.id !== created.id),
+    ].slice(0, 20));
+    if (created.projectId === null) {
+      setLocalSessions((current) => [
+        created,
+        ...current.filter((candidate) => candidate.id !== created.id),
+      ]);
+      return;
+    }
+    setSessionsByProject((current) => {
+      const projectSessions = current[created.projectId!];
+      if (!projectSessions) return current;
+      return {
+        ...current,
+        [created.projectId!]: [
+          created,
+          ...projectSessions.filter((candidate) => candidate.id !== created.id),
+        ],
+      };
+    });
   }, []);
 
   const changeSessionStatus = useCallback(
@@ -602,6 +629,37 @@ export default function CodeAnalysisWorkbench() {
       setStatus(error instanceof Error ? error.message : 'Unable to rename branch');
     }
   }, [session]);
+
+  const forkSession = useCallback(async (documentId: string) => {
+    if (!session || session.status === 'archived' || isRunning || isForkingSession) return;
+    try {
+      setIsForkingSession(true);
+      const forkedSession = await window.api.codeAnalysis.forkSession({
+        sessionId: session.id,
+        documentId,
+      });
+      addSessionToVisibleCollections(forkedSession);
+      if (forkedSession.projectId) {
+        setProjects((current) =>
+          current.map((candidate) =>
+            candidate.id === forkedSession.projectId
+              ? { ...candidate, conversationCount: (candidate.conversationCount ?? 0) + 1 }
+              : candidate,
+          ),
+        );
+      }
+      setProject(
+        forkedSession.projectId
+          ? projects.find((candidate) => candidate.id === forkedSession.projectId) ?? null
+          : null,
+      );
+      await selectSession(forkedSession);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Unable to create branch');
+    } finally {
+      setIsForkingSession(false);
+    }
+  }, [addSessionToVisibleCollections, isForkingSession, isRunning, projects, selectSession, session]);
 
   const clearDocumentState = useCallback(() => {
     setDocument(null);
@@ -1128,24 +1186,50 @@ export default function CodeAnalysisWorkbench() {
       </section>
 
       <section className={styles.centerPanel} ref={setReaderViewport}>
-        {session && branches.length > 1 ? (
+        {session ? (
           <div className={styles.branchSelector}>
-            <label>
-              <span>{text.branch}</span>
-              <select
-                aria-label={text.branch}
-                disabled={isRunning}
-                value={activeBranchId ?? ''}
-                onChange={(e) => void switchBranch(e.target.value)}
-              >
-                {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {branches.length > 1 ? (
+              <label>
+                <span>{text.branch}</span>
+                <select
+                  aria-label={text.branch}
+                  disabled={isRunning || isForkingSession}
+                  value={activeBranchId ?? ''}
+                  onChange={(e) => void switchBranch(e.target.value)}
+                >
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <button
+              type="button"
+              className={styles.branchForkButton}
+              disabled={
+                isRunning ||
+                isForkingSession ||
+                session.status === 'archived' ||
+                !session.activeDocumentId
+              }
+              onClick={() => void forkSession(session.activeDocumentId!)}
+            >
+              <span className="material-symbols-rounded" aria-hidden="true">fork_right</span>
+              {language === 'zh-CN' ? '\u521b\u5efa\u5206\u652f' : 'Create branch'}
+            </button>
           </div>
+        ) : null}
+        {session ? (
+          <ConversationTimeline
+            turns={turns}
+            activeTurnId={document?.id}
+            onSelectTurn={(turn) => void handleVisibleDocument(turn.id)}
+            onForkFromTurn={(documentId) => void forkSession(documentId)}
+            forkDisabled={isRunning || isForkingSession || session.status === 'archived'}
+            language={language}
+          />
         ) : null}
         <div className={styles.conversation} role="log" aria-live="polite" aria-busy={isRunning}>
           {messages.length === 0 ? (
