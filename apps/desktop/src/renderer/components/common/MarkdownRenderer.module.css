@@ -13,31 +13,34 @@
    Headings
    ---------------------------------------- */
 .h1 {
+  font-family: var(--md-sys-font-display);
   font-size: var(--md-sys-typescale-headline-large);
   font-weight: 700;
   line-height: 1.3;
   margin-top: var(--md-sys-spacing-xxl);
   margin-bottom: var(--md-sys-spacing-md);
-  color: var(--md-sys-color-on-surface);
-  letter-spacing: -0.25px;
+  color: var(--md-sys-color-title-accent);
+  letter-spacing: 0;
 }
 
 .h2 {
+  font-family: var(--md-sys-font-display);
   font-size: var(--md-sys-typescale-headline-medium);
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.35;
   margin-top: var(--md-sys-spacing-xl);
   margin-bottom: var(--md-sys-spacing-sm);
-  color: var(--md-sys-color-on-surface);
+  color: var(--md-sys-color-title-accent);
 }
 
 .h3 {
+  font-family: var(--md-sys-font-display);
   font-size: var(--md-sys-typescale-headline-small);
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.4;
   margin-top: var(--md-sys-spacing-lg);
   margin-bottom: var(--md-sys-spacing-sm);
-  color: var(--md-sys-color-on-surface);
+  color: var(--md-sys-color-title-accent);
 }
 
 .h4 {
@@ -57,7 +60,7 @@
   line-height: 1.8;
   margin-bottom: var(--md-sys-spacing-md);
   color: var(--md-sys-color-on-surface);
-  letter-spacing: 0.5px;
+  letter-spacing: 0;
 }
 
 /* ----------------------------------------
@@ -80,19 +83,21 @@
    Code
    ---------------------------------------- */
 .inlineCode {
-  font-family: 'Roboto Mono', 'Consolas', monospace;
+  font-family: var(--md-sys-font-mono);
   font-size: var(--md-sys-typescale-body-medium);
-  background-color: var(--md-sys-color-surface-container-high);
+  background-color: var(--md-sys-color-code-bg);
+  border: 1px solid var(--md-sys-color-panel-border);
   color: var(--md-sys-color-on-surface);
   padding: 2px var(--md-sys-spacing-xs);
   border-radius: var(--md-sys-shape-corner-extra-small);
 }
 
 .codeBlock {
-  font-family: 'Roboto Mono', 'Consolas', monospace;
+  font-family: var(--md-sys-font-mono);
   font-size: var(--md-sys-typescale-body-medium);
-  background-color: var(--md-sys-color-inverse-surface);
-  color: var(--md-sys-color-inverse-on-surface);
+  background-color: var(--md-sys-color-code-bg);
+  border: 1px solid var(--md-sys-color-panel-border);
+  color: var(--md-sys-color-on-surface);
   padding: var(--md-sys-spacing-md);
   border-radius: var(--md-sys-shape-corner-medium);
   overflow-x: auto;
@@ -104,11 +109,12 @@
    Blockquote
    ---------------------------------------- */
 .blockquote {
-  border-left: 4px solid var(--md-sys-color-primary);
-  padding-left: var(--md-sys-spacing-md);
+  border-left: 3px solid var(--md-sys-color-primary);
+  border-radius: 0 var(--md-sys-shape-corner-medium) var(--md-sys-shape-corner-medium) 0;
+  background: var(--md-sys-color-accent-soft);
+  padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-md);
   margin-bottom: var(--md-sys-spacing-md);
   color: var(--md-sys-color-on-surface-variant);
-  font-style: italic;
 }
 
 /* ----------------------------------------
@@ -152,7 +158,7 @@
    Link
    ---------------------------------------- */
 .link {
-  color: var(--md-sys-color-primary);
+  color: var(--md-sys-color-accent-strong);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -165,8 +171,8 @@
    Annotation marks
    ---------------------------------------- */
 .annotationMark {
-  background-color: var(--md-sys-color-tertiary-container, #ecd8f5);
-  color: var(--md-sys-color-on-tertiary-container, #2c1440);
+  background-color: var(--md-sys-color-mark);
+  color: var(--md-sys-color-on-mark);
   border-radius: 2px;
   padding: 0 2px;
   cursor: pointer;
@@ -179,12 +185,12 @@
 }
 
 .annotationMark:focus-visible {
-  outline: 2px solid var(--md-sys-color-primary, #6750a4);
+  outline: 2px solid var(--md-sys-color-primary);
   outline-offset: 2px;
 }
 
 .activeAnnotationMark {
-  background-color: var(--md-sys-color-primary-container, #eaddff);
-  color: var(--md-sys-color-on-primary-container, #21005d);
-  box-shadow: 0 0 0 2px var(--md-sys-color-primary, #6750a4);
+  background-color: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  box-shadow: 0 0 0 2px var(--md-sys-color-primary);
 }
