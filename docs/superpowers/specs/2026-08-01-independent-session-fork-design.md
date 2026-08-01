@@ -18,8 +18,9 @@
 不再用 `analysis_branches` 表表达用户可见的分支。创建分支会建立新的 `analysis_sessions` 记录，并复制被选路径上的：
 
 1. `analysis_documents`，保留顺序并重写 `session_id`、`branch_id` 和路径内的 `parent_document_id`。
-2. `analysis_annotations`，把 `analysis_document_id` 映射到复制后的轮次。
-3. `analysis_discussion_messages`，把 `annotation_id` 映射到复制后的批注。
+2. `analysis_tool_traces`，把 `analysis_document_id` 映射到复制后的轮次。
+3. `analysis_annotations`，把 `analysis_document_id` 映射到复制后的轮次。
+4. `analysis_discussion_messages`，把 `annotation_id` 映射到复制后的批注。
 
 每个新会话保留一个主分支，仅用于满足现有轮次表的结构约束；该分支不与源会话、源分支或源文档保留引用关系。该方案不需要重建现有表：旧的同会话分叉数据继续可读，删除时由触发器修复保证安全；所有新建分叉均采用独立会话副本。
 
