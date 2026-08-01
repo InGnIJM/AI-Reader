@@ -519,22 +519,20 @@
 
 .deleteAnnotationBtn {
   position: absolute;
-  top: var(--md-sys-spacing-sm);
-  right: var(--md-sys-spacing-sm);
+  top: var(--md-sys-spacing-xs);
+  right: var(--md-sys-spacing-xs);
   z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  min-height: 32px;
-  gap: var(--md-sys-spacing-xs);
-  border: 1px solid var(--md-sys-color-error);
-  border-radius: var(--md-sys-shape-corner-full);
+  display: grid;
+  width: 24px;
+  min-height: 24px;
+  height: 24px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--md-sys-shape-corner-extra-small);
   background: transparent;
-  color: var(--md-sys-color-error);
+  color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
-  padding: 0 10px;
-  font-size: var(--md-sys-typescale-label-small);
-  font-weight: 700;
-  letter-spacing: 0.1px;
+  padding: 0;
   transition: background-color var(--md-sys-motion-duration-fast)
       var(--md-sys-motion-easing-standard),
     color var(--md-sys-motion-duration-fast) var(--md-sys-motion-easing-standard),
@@ -543,13 +541,13 @@
 }
 
 .deleteAnnotationBtn:hover {
-  background: var(--md-sys-color-error);
-  color: var(--md-sys-color-on-error);
-  box-shadow: var(--md-sys-elevation-1);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-error);
+  box-shadow: none;
 }
 
 .deleteAnnotationBtn:active {
-  transform: scale(0.97);
+  transform: scale(0.94);
 }
 
 .deleteAnnotationBtn:focus-visible {
@@ -558,11 +556,7 @@
 }
 
 .deleteAnnotationBtn .material-symbols-rounded {
-  font-size: 16px;
-}
-
-.deleteAnnotationLabel {
-  line-height: 1;
+  font-size: 15px;
 }
 
 .annotationReply {
