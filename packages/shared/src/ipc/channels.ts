@@ -9,6 +9,7 @@
 export const IPC_CHANNELS = {
   /** 获取应用版本号 */
   SYSTEM_GET_VERSION: 'system:getVersion',
+  SYSTEM_SET_TITLE_BAR_OVERLAY: 'system:setTitleBarOverlay',
   SETTINGS_GET_LANGUAGE: 'settings:getLanguage',
   SETTINGS_SET_LANGUAGE: 'settings:setLanguage',
 

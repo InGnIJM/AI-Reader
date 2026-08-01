@@ -20,6 +20,7 @@ try {
   // 使用硬编码的通道名称作为后备（与 IPC_CHANNELS 定义一致）
   IPC_CHANNELS = {
     SYSTEM_GET_VERSION: 'system:getVersion',
+    SYSTEM_SET_TITLE_BAR_OVERLAY: 'system:setTitleBarOverlay',
     SETTINGS_GET_LANGUAGE: 'settings:getLanguage',
     SETTINGS_SET_LANGUAGE: 'settings:setLanguage',
     WORKSPACE_CREATE: 'workspace:create',
@@ -133,6 +134,11 @@ async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
 const api = {
   // ── System ──────────────────────────────────────────────────────────────
   getAppVersion: () => invoke<string>(IPC_CHANNELS.SYSTEM_GET_VERSION),
+
+  system: {
+    setTitleBarOverlay: (theme: 'white' | 'black-gold') =>
+      invoke<void>(IPC_CHANNELS.SYSTEM_SET_TITLE_BAR_OVERLAY, theme),
+  },
 
   settings: {
     getLanguage: () => invoke<AppLanguage>(IPC_CHANNELS.SETTINGS_GET_LANGUAGE),
