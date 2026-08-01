@@ -38,7 +38,9 @@ export function registerSystemHandlers(): void {
       }
 
       try {
-        BrowserWindow.fromWebContents(event.sender)?.setTitleBarOverlay(createTitleBarOverlay(theme));
+        if (process.platform === 'win32') {
+          BrowserWindow.fromWebContents(event.sender)?.setTitleBarOverlay(createTitleBarOverlay(theme));
+        }
         return { success: true, data: undefined };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
