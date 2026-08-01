@@ -4,7 +4,7 @@
 
 **Goal:** Refresh the desktop code-analysis workbench with an integrated Windows title bar, contextual breadcrumb navigation, soft-pill action controls, and the approved black-gold / warm-gray-mineral-blue themes.
 
-**Architecture:** Keep the Electron title-bar configuration in a pure main-process options factory so it is unit-testable without booting Electron. Add a renderer-only `AppTitleBar` that receives already-selected project/session/branch context from `CodeAnalysisWorkbench`; it owns presentation, accessibility and drag-region boundaries, while the workbench continues to own business-state transitions. Retain the existing semantic CSS tokens and change their two theme mappings before styling each component through those tokens.
+**Architecture:** Keep the Electron title-bar configuration in a pure main-process options factory so it is unit-testable without booting Electron. Use one narrow `system:setTitleBarOverlay` UI IPC to synchronize the native Windows control overlay whenever the renderer theme changes. Add a renderer-only `AppTitleBar` that receives already-selected project/session/branch context from `CodeAnalysisWorkbench`; it owns presentation, accessibility and drag-region boundaries, while the workbench continues to own business-state transitions. Retain the existing semantic CSS tokens and change their two theme mappings before styling each component through those tokens.
 
 **Tech Stack:** Electron 33, React 19, TypeScript strict mode, CSS Modules, Material Symbols Rounded, Vitest, Testing Library, existing ThemeContext.
 
@@ -17,6 +17,8 @@
 | `apps/desktop/src/main/window-options.ts` | Pure `BrowserWindow` option factory with the Windows title-bar overlay decision. |
 | `apps/desktop/src/main/test/test_window-options.ts` | Unit coverage for Windows and non-Windows options. |
 | `apps/desktop/src/main/index.ts` | Creates the BrowserWindow from the factory without changing IPC/bootstrap behavior. |
+| `apps/desktop/src/main/ipc/system.ts` | Accepts only the two known UI themes and updates the owning Window's native title-bar overlay. |
+| `apps/desktop/src/preload/index.ts` | Exposes the narrow theme-overlay bridge to the renderer. |
 | `apps/desktop/src/renderer/components/common/AppTitleBar.tsx` | Brand strip and contextual breadcrumb renderer; no persistence or domain state. |
 | `apps/desktop/src/renderer/components/common/AppTitleBar.module.css` | Title-bar dimensions, drag/no-drag regions, breadcrumb truncation and responsive treatment. |
 | `apps/desktop/src/renderer/components/common/test/test_AppTitleBar.tsx` | Accessibility, current-item and empty-context tests for the title bar. |
