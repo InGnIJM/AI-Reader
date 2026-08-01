@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ComponentProps } from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { AnalysisMarkdownViewer } from '../AnalysisMarkdownViewer';
 import type { AnnotationDef } from '../../common/MarkdownRenderer';
@@ -114,5 +115,67 @@ describe('AnalysisMarkdownViewer annotations', () => {
     );
 
     expect(screen.getByText('Empty doc')).toBeInTheDocument();
+  });
+
+  it('reports a document when it reaches the reader viewport center', () => {
+    class MockIntersectionObserver {
+      static instances: MockIntersectionObserver[] = [];
+      readonly targets = new Set<Element>();
+
+      constructor(
+        private readonly callback: IntersectionObserverCallback,
+        readonly options?: IntersectionObserverInit,
+      ) {
+        MockIntersectionObserver.instances.push(this);
+      }
+
+      observe = (target: Element) => this.targets.add(target);
+      disconnect = vi.fn();
+
+      emit(target: Element) {
+        this.callback(
+          [{ isIntersecting: true, intersectionRatio: 0.1, target } as IntersectionObserverEntry],
+          this as unknown as IntersectionObserver,
+        );
+      }
+    }
+
+    const originalIntersectionObserver = window.IntersectionObserver;
+    Object.defineProperty(window, 'IntersectionObserver', {
+      configurable: true,
+      value: MockIntersectionObserver,
+    });
+
+    const visibilityRoot = document.createElement('section');
+    const onVisible = vi.fn();
+    type ViewerPropsWithVisibilityRoot = ComponentProps<typeof AnalysisMarkdownViewer> & {
+      visibilityRoot: Element;
+    };
+    const props: ViewerPropsWithVisibilityRoot = {
+      content: 'Visible document',
+      onTextSelect: vi.fn(),
+      documentId: 'doc-visible',
+      onVisible,
+      visibilityRoot,
+    };
+
+    const { container } = render(<AnalysisMarkdownViewer {...props} />);
+    const renderedDocument = container.querySelector('[data-analysis-document-id="doc-visible"]')!;
+    const observer = MockIntersectionObserver.instances.find((instance) =>
+      instance.targets.has(renderedDocument),
+    )!;
+    observer.emit(renderedDocument);
+
+    expect(onVisible).toHaveBeenCalledWith('doc-visible');
+    expect(observer.options).toMatchObject({
+      root: visibilityRoot,
+      rootMargin: '-45% 0px -45% 0px',
+      threshold: [0],
+    });
+
+    Object.defineProperty(window, 'IntersectionObserver', {
+      configurable: true,
+      value: originalIntersectionObserver,
+    });
   });
 });

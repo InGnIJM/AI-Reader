@@ -17,6 +17,8 @@ interface AnalysisMarkdownViewerProps {
   documentId?: string;
   /** Called when this article occupies the reader's visible area. */
   onVisible?: (documentId: string) => void;
+  /** Scroll container whose center determines the currently read article. */
+  visibilityRoot?: Element | null;
 }
 
 export function AnalysisMarkdownViewer({
@@ -28,6 +30,7 @@ export function AnalysisMarkdownViewer({
   onAnnotationClick,
   documentId,
   onVisible,
+  visibilityRoot,
 }: AnalysisMarkdownViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -39,15 +42,19 @@ export function AnalysisMarkdownViewer({
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.6)) {
+        if (entries.some((entry) => entry.isIntersecting)) {
           onVisible(documentId);
         }
       },
-      { threshold: [0.6] },
+      {
+        root: visibilityRoot ?? null,
+        rootMargin: '-45% 0px -45% 0px',
+        threshold: [0],
+      },
     );
     observer.observe(container);
     return () => observer.disconnect();
-  }, [documentId, onVisible]);
+  }, [documentId, onVisible, visibilityRoot]);
 
   if (!content) {
     return (

@@ -85,6 +85,7 @@ export default function CodeAnalysisWorkbench() {
   const [project, setProject] = useState<CodeProject | null>(null);
   const [document, setDocument] = useState<AnalysisDocument | null>(null);
   const currentDocumentIdRef = useRef<string | undefined>(undefined);
+  const [readerViewport, setReaderViewport] = useState<HTMLElement | null>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [goal, setGoal] = useState('');
   const [traces, setTraces] = useState<ToolTraceItem[]>([]);
@@ -1126,7 +1127,7 @@ export default function CodeAnalysisWorkbench() {
         />
       </section>
 
-      <section className={styles.centerPanel}>
+      <section className={styles.centerPanel} ref={setReaderViewport}>
         {session && branches.length > 1 ? (
           <div className={styles.branchSelector}>
             <label>
@@ -1193,6 +1194,7 @@ export default function CodeAnalysisWorkbench() {
                         activeAnnotationId={activeAnnotationId}
                         onAnnotationClick={handleAnnotationClick}
                         onVisible={handleVisibleDocument}
+                        visibilityRoot={readerViewport}
                       />
                     )}
                   </article>
@@ -1218,6 +1220,9 @@ export default function CodeAnalysisWorkbench() {
           onViewSource={handleViewSource}
           onDelete={handleDeleteAnnotation}
           deleteLabel={text.deleteSession}
+          confirmDeleteLabel={text.confirmDelete}
+          cancelLabel={text.cancel}
+          deleteWarningLabel={text.deleteAnnotationWarning}
           viewSourceLabel={text.viewSource}
           emptyLabel={text.noComments}
           statusLabels={{
