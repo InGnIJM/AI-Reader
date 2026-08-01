@@ -299,7 +299,6 @@
 }
 
 .sessionRow[data-active='true'] {
-  border-color: var(--md-sys-color-accent-border);
   background: var(--md-sys-color-accent-soft);
 }
 
@@ -348,9 +347,20 @@
 
 .projectSidebar .folderRow[data-active='true'],
 .projectSidebar .conversationItem[data-active='true'] {
-  border-color: var(--md-sys-color-accent-border);
   background: var(--md-sys-color-accent-soft);
   color: var(--md-sys-color-accent-strong);
+}
+
+.projectSidebar .folderRow[data-active='true']::before,
+.projectSidebar .conversationItem[data-active='true']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 2.5px;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-accent-strong);
 }
 
 .projectSidebar .folderRow[data-active='true'] .material-symbols-rounded,
@@ -512,16 +522,16 @@
   z-index: 1;
   display: inline-flex;
   align-items: center;
-  min-height: 28px;
-  gap: var(--md-sys-spacing-xs);
+  min-height: 24px;
+  gap: 3px;
   border: 1px solid var(--md-sys-color-error);
-  border-radius: var(--md-sys-shape-corner-small);
+  border-radius: var(--md-sys-shape-corner-full);
   background: var(--md-sys-color-error-container);
   color: var(--md-sys-color-on-error-container);
   cursor: pointer;
-  padding: 3px 7px;
+  padding: 1px 8px;
   font-size: var(--md-sys-typescale-label-small);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .deleteAnnotationBtn:hover {
@@ -534,7 +544,7 @@
 }
 
 .deleteAnnotationBtn .material-symbols-rounded {
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .deleteAnnotationLabel {
@@ -560,37 +570,52 @@
   text-align: center;
 }
 
-/* ---------- 输入区 ---------- */
+/* ---------- 输入区：圆角卡片 + 紧凑发送按钮 ---------- */
 .promptBox {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 72px;
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--md-sys-spacing-xs);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-surface-container-lowest);
+  padding: var(--md-sys-spacing-sm) var(--md-sys-spacing-sm) var(--md-sys-spacing-sm)
+    var(--md-sys-spacing-md);
+  box-shadow: var(--md-sys-elevation-1);
+  transition: border-color var(--md-sys-motion-duration-fast)
+      var(--md-sys-motion-easing-standard),
+    box-shadow var(--md-sys-motion-duration-fast) var(--md-sys-motion-easing-standard);
+}
+
+.promptBox:focus-within {
+  border-color: var(--md-sys-color-accent-border);
+  box-shadow: var(--md-sys-elevation-2);
 }
 
 .promptBox textarea {
-  min-height: 44px;
+  min-height: 40px;
   max-height: 120px;
-  resize: vertical;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--md-sys-shape-corner-medium);
-  background: var(--md-sys-color-surface-container-lowest);
-  color: var(--md-sys-color-on-surface);
-  padding: 10px var(--md-sys-spacing-sm);
-  font-family: inherit;
-}
-
-.promptBox textarea:focus-visible {
+  resize: none;
+  border: none;
   outline: none;
-  border-color: var(--md-sys-color-accent-border);
-  box-shadow: var(--md-sys-elevation-1);
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  padding: var(--md-sys-spacing-xs) 0 0;
+  font-family: inherit;
+  font-size: var(--md-sys-typescale-body-medium);
+  line-height: 1.6;
 }
 
 .promptBox button {
+  align-self: flex-end;
+  min-height: 30px;
+  height: 30px;
   border: none;
-  border-radius: var(--md-sys-shape-corner-medium);
+  border-radius: var(--md-sys-shape-corner-full);
   background: var(--md-sys-color-primary);
   color: var(--md-sys-color-on-primary);
+  font-size: var(--md-sys-typescale-body-small);
   font-weight: 500;
+  padding: 0 var(--md-sys-spacing-md);
 }
 
 .promptBox button:hover:not(:disabled) {
@@ -754,7 +779,6 @@
 }
 
 .timelineItem[data-active='true'] {
-  border-color: var(--md-sys-color-accent-border);
   background: var(--md-sys-color-accent-soft);
 }
 
