@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CodeAnalysisWorkbench from '../CodeAnalysisWorkbench';
@@ -1647,6 +1647,12 @@ describe('CodeAnalysisWorkbench', () => {
   });
 
   it('highlights annotated text and opens the annotation when its mark is clicked', async () => {
+    const scrollSpy = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      writable: true,
+      value: scrollSpy,
+    });
     const mockSession = {
       id: 'session-ann',
       title: 'Ann Session',
@@ -1726,6 +1732,9 @@ describe('CodeAnalysisWorkbench', () => {
     await waitFor(() =>
       expect(card.querySelector('[aria-expanded]')).toHaveAttribute('aria-expanded', 'true'),
     );
+    expect(scrollSpy).toHaveBeenCalledWith({ block: 'nearest', behavior: 'smooth' });
+    expect(card.querySelector('[aria-expanded]')).toHaveFocus();
+    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
   });
 
   it('scrolls to and focuses the source mark when view source is clicked', async () => {
@@ -2166,5 +2175,94 @@ describe('CodeAnalysisWorkbench', () => {
     );
     expect(screen.queryByRole('button', { name: 'Only session' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Analysis goal')).toHaveValue('');
+  });
+
+  it('switches the comment panel when a different assistant document becomes visible', async () => {
+    class MockIntersectionObserver {
+      static instances: MockIntersectionObserver[] = [];
+      readonly targets = new Set<Element>();
+
+      constructor(private readonly callback: IntersectionObserverCallback) {
+        MockIntersectionObserver.instances.push(this);
+      }
+
+      observe = (target: Element) => this.targets.add(target);
+      unobserve = (target: Element) => this.targets.delete(target);
+      disconnect = () => this.targets.clear();
+      takeRecords = () => [];
+
+      emit(target: Element) {
+        this.callback(
+          [{ isIntersecting: true, intersectionRatio: 0.75, target } as IntersectionObserverEntry],
+          this as unknown as IntersectionObserver,
+        );
+      }
+    }
+
+    const originalIntersectionObserver = window.IntersectionObserver;
+    Object.defineProperty(window, 'IntersectionObserver', {
+      configurable: true,
+      value: MockIntersectionObserver,
+    });
+
+    const session = {
+      id: 'session-visible-turn',
+      title: 'Visible turns',
+      status: 'active' as const,
+      projectId: 'project-1',
+      activeBranchId: 'branch-1',
+      activeDocumentId: 'turn-1',
+      archivedAt: null,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:01:00.000Z',
+    };
+    (window.api.codeAnalysis.listRecentSessions as ReturnType<typeof vi.fn>).mockResolvedValue([session]);
+    (window.api.codeAnalysis.getSession as ReturnType<typeof vi.fn>).mockResolvedValue({
+      session,
+      branches: [],
+      turns: [
+        {
+          id: 'turn-1', sessionId: session.id, branchId: 'branch-1', parentDocumentId: null,
+          goal: 'First', contentMarkdown: '# First answer', status: 'completed', toolCallCount: 0,
+          createdAt: session.createdAt, updatedAt: session.updatedAt,
+        },
+        {
+          id: 'turn-2', sessionId: session.id, branchId: 'branch-1', parentDocumentId: 'turn-1',
+          goal: 'Second', contentMarkdown: '# Second answer', status: 'completed', toolCallCount: 0,
+          createdAt: session.updatedAt, updatedAt: session.updatedAt,
+        },
+      ],
+    });
+    (window.api.codeAnalysis.listAnnotations as ReturnType<typeof vi.fn>).mockImplementation(
+      async (documentId: string) =>
+        documentId === 'turn-2'
+          ? [{
+              id: 'ann-turn-2', analysisDocumentId: 'turn-2', anchorExactText: 'Second answer',
+              selectedText: 'Second answer', question: 'Second question', status: 'answered',
+              createdAt: session.updatedAt, updatedAt: session.updatedAt,
+            }]
+          : [],
+    );
+
+    const user = userEvent.setup();
+    render(<CodeAnalysisWorkbench />);
+    await user.click(await screen.findByRole('button', { name: 'Visible turns' }));
+    expect(await screen.findByText('Second answer')).toBeInTheDocument();
+
+    const secondDocument = document.querySelector('[data-analysis-document-id="turn-2"]')!;
+    const observer = MockIntersectionObserver.instances.find((item) =>
+      item.targets.has(secondDocument),
+    )!;
+    act(() => observer.emit(secondDocument));
+
+    await waitFor(() =>
+      expect(window.api.codeAnalysis.listAnnotations).toHaveBeenLastCalledWith('turn-2'),
+    );
+    expect(await screen.findByTestId('annotation-delete-ann-turn-2')).toBeInTheDocument();
+
+    Object.defineProperty(window, 'IntersectionObserver', {
+      configurable: true,
+      value: originalIntersectionObserver,
+    });
   });
 });

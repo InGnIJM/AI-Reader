@@ -84,6 +84,7 @@ export default function CodeAnalysisWorkbench() {
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(new Set());
   const [project, setProject] = useState<CodeProject | null>(null);
   const [document, setDocument] = useState<AnalysisDocument | null>(null);
+  const currentDocumentIdRef = useRef<string | undefined>(undefined);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [goal, setGoal] = useState('');
   const [traces, setTraces] = useState<ToolTraceItem[]>([]);
@@ -160,6 +161,10 @@ export default function CodeAnalysisWorkbench() {
   const [turns, setTurns] = useState<AnalysisTurn[]>([]);
 
   useEffect(() => {
+    currentDocumentIdRef.current = document?.id;
+  }, [document?.id]);
+
+  useEffect(() => {
     let active = true;
     void Promise.all([
       window.api.codeAnalysis.listProjects(),
@@ -204,6 +209,33 @@ export default function CodeAnalysisWorkbench() {
       })),
     );
   }, []);
+
+  const handleVisibleDocument = useCallback(
+    async (documentId: string) => {
+      if (currentDocumentIdRef.current === documentId) return;
+      const visibleTurn = turns.find((turn) => turn.id === documentId);
+      if (!visibleTurn) return;
+
+      viewRequestSequence.current += 1;
+      const requestId = viewRequestSequence.current;
+      currentDocumentIdRef.current = documentId;
+      setDocument(turnToAnalysisDocument(visibleTurn, session?.projectId ?? null));
+      setActiveAnnotationId(undefined);
+      setSelectedText('');
+      setSelectedSourceRange(undefined);
+      setComment('');
+
+      const [nextTraces, nextAnnotations] = await Promise.all([
+        window.api.codeAnalysis.listTraces(documentId),
+        loadAnnotations(documentId),
+      ]);
+      if (requestId === viewRequestSequence.current) {
+        setTraces(nextTraces);
+        setAnnotations(nextAnnotations);
+      }
+    },
+    [loadAnnotations, session?.projectId, turns],
+  );
 
   // ── Session management ────────────────────────────────────────────────────
 
@@ -1149,6 +1181,7 @@ export default function CodeAnalysisWorkbench() {
                     ) : (
                       <AnalysisMarkdownViewer
                         content={message.content}
+                        documentId={message.documentId}
                         onTextSelect={(text, sourceRange) => {
                           void selectAnalysisText(message, text, sourceRange);
                         }}
@@ -1159,6 +1192,7 @@ export default function CodeAnalysisWorkbench() {
                         }
                         activeAnnotationId={activeAnnotationId}
                         onAnnotationClick={handleAnnotationClick}
+                        onVisible={handleVisibleDocument}
                       />
                     )}
                   </article>
@@ -1183,6 +1217,7 @@ export default function CodeAnalysisWorkbench() {
           onActivate={setActiveAnnotationId}
           onViewSource={handleViewSource}
           onDelete={handleDeleteAnnotation}
+          deleteLabel={text.deleteSession}
           viewSourceLabel={text.viewSource}
           emptyLabel={text.noComments}
           statusLabels={{
