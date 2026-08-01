@@ -457,6 +457,43 @@ describe('code analysis database migration', () => {
     ).toThrow(/session/i);
   });
 
+  it('deletes a legacy session with a forked branch', () => {
+    const sqlite = openMigrated(':memory:');
+    seedSessionGraph(sqlite);
+    sqlite.exec(`
+      INSERT INTO analysis_documents
+        (id, session_id, branch_id, parent_document_id, goal,
+         content_markdown, status, tool_call_count, created_at, updated_at)
+      VALUES
+        ('document-main-child', 'session-one', 'branch-one', 'document-one', 'Main child',
+         '', 'completed', 0, '2026-07-29', '2026-07-29');
+      UPDATE analysis_branches
+      SET head_document_id = 'document-main-child'
+      WHERE id = 'branch-one';
+      INSERT INTO analysis_branches
+        (id, session_id, name, parent_branch_id, forked_from_document_id,
+         head_document_id, created_at, updated_at)
+      VALUES
+        ('branch-fork', 'session-one', 'Fork', 'branch-one', 'document-one',
+         NULL, '2026-07-29', '2026-07-29');
+      INSERT INTO analysis_documents
+        (id, session_id, branch_id, parent_document_id, goal,
+         content_markdown, status, tool_call_count, created_at, updated_at)
+      VALUES
+        ('document-fork-child', 'session-one', 'branch-fork', 'document-one', 'Fork child',
+         '', 'completed', 0, '2026-07-29', '2026-07-29');
+      UPDATE analysis_branches
+      SET head_document_id = 'document-fork-child'
+      WHERE id = 'branch-fork';
+    `);
+
+    expect(() =>
+      sqlite.prepare('DELETE FROM analysis_sessions WHERE id = ?').run('session-one'),
+    ).not.toThrow();
+    expect(listIds(sqlite, 'analysis_sessions')).toEqual(['session-two']);
+    expect(sqlite.pragma('foreign_key_check')).toEqual([]);
+  });
+
   it('rejects self-referencing and indirect turn parent cycles', () => {
     const sqlite = openMigrated(createPath());
     seedSessionGraph(sqlite);

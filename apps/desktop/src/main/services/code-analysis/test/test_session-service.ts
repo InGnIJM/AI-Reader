@@ -464,6 +464,43 @@ describe('AnalysisSessionService', () => {
       ).toBe(0);
     });
 
+    it('deletes a legacy session with a forked branch', async () => {
+      const { sessionId, branchId: mainBranchId, documentId: rootDocumentId } = insertSession(db);
+      const mainChildId = insertDocument(db, sessionId, mainBranchId, {
+        parentDocumentId: rootDocumentId,
+        goal: 'Main child',
+      });
+      db.db
+        .prepare('UPDATE analysis_branches SET head_document_id = ? WHERE id = ?')
+        .run(mainChildId, mainBranchId);
+
+      const forkBranchId = randomUUID();
+      const forkDocumentId = randomUUID();
+      const now = new Date().toISOString();
+      db.db
+        .prepare(
+          `INSERT INTO analysis_branches
+             (id, session_id, name, parent_branch_id, forked_from_document_id, head_document_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, NULL, ?, ?)`,
+        )
+        .run(forkBranchId, sessionId, 'Fork', mainBranchId, rootDocumentId, now, now);
+      db.db
+        .prepare(
+          `INSERT INTO analysis_documents
+             (id, session_id, branch_id, parent_document_id, goal, content_markdown, status, tool_call_count, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, '', 'completed', 0, ?, ?)`,
+        )
+        .run(forkDocumentId, sessionId, forkBranchId, rootDocumentId, 'Fork child', now, now);
+      db.db
+        .prepare('UPDATE analysis_branches SET head_document_id = ? WHERE id = ?')
+        .run(forkDocumentId, forkBranchId);
+
+      await expect(service.deletePermanently(sessionId, true)).resolves.toEqual({
+        cleanupPending: false,
+      });
+      expect(sessionRowCount(db)).toBe(0);
+    });
+
     it('enqueues cleanup for multiple turns', async () => {
       const { sessionId, branchId, documentId: firstTurn } = insertSession(db);
       const secondTurn = insertDocument(db, sessionId, branchId, {

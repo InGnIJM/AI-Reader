@@ -539,7 +539,9 @@ function createV2Triggers(sqlite: Database.Database): void {
     BEFORE UPDATE ON analysis_branches
     BEGIN
       SELECT CASE
-        WHEN NEW.parent_branch_id IS NOT NULL
+        WHEN (NEW.parent_branch_id IS NOT OLD.parent_branch_id
+              OR NEW.session_id IS NOT OLD.session_id)
+          AND NEW.parent_branch_id IS NOT NULL
           AND NOT EXISTS (
             SELECT 1 FROM analysis_branches
             WHERE id = NEW.parent_branch_id AND session_id = NEW.session_id
@@ -547,7 +549,9 @@ function createV2Triggers(sqlite: Database.Database): void {
         THEN RAISE(ABORT, 'analysis branch parent session mismatch')
       END;
       SELECT CASE
-        WHEN NEW.forked_from_document_id IS NOT NULL
+        WHEN (NEW.forked_from_document_id IS NOT OLD.forked_from_document_id
+              OR NEW.session_id IS NOT OLD.session_id)
+          AND NEW.forked_from_document_id IS NOT NULL
           AND NOT EXISTS (
             SELECT 1 FROM analysis_documents
             WHERE id = NEW.forked_from_document_id AND session_id = NEW.session_id
@@ -555,7 +559,8 @@ function createV2Triggers(sqlite: Database.Database): void {
         THEN RAISE(ABORT, 'analysis branch fork document session mismatch')
       END;
       SELECT CASE
-        WHEN NEW.head_document_id IS NOT NULL
+        WHEN NEW.head_document_id IS NOT OLD.head_document_id
+          AND NEW.head_document_id IS NOT NULL
           AND NOT EXISTS (
             SELECT 1 FROM analysis_documents
             WHERE id = NEW.head_document_id AND branch_id = NEW.id
@@ -1258,7 +1263,9 @@ function createOwnershipAndCycleTriggers(sqlite: Database.Database): void {
     BEFORE UPDATE ON analysis_branches
     BEGIN
       SELECT CASE
-        WHEN NEW.parent_branch_id IS NOT NULL
+        WHEN (NEW.parent_branch_id IS NOT OLD.parent_branch_id
+              OR NEW.session_id IS NOT OLD.session_id)
+          AND NEW.parent_branch_id IS NOT NULL
           AND NOT EXISTS (
             SELECT 1 FROM analysis_branches
             WHERE id = NEW.parent_branch_id AND session_id = NEW.session_id
@@ -1266,7 +1273,9 @@ function createOwnershipAndCycleTriggers(sqlite: Database.Database): void {
         THEN RAISE(ABORT, 'analysis branch parent session mismatch')
       END;
       SELECT CASE
-        WHEN NEW.forked_from_document_id IS NOT NULL
+        WHEN (NEW.forked_from_document_id IS NOT OLD.forked_from_document_id
+              OR NEW.session_id IS NOT OLD.session_id)
+          AND NEW.forked_from_document_id IS NOT NULL
           AND NOT EXISTS (
             SELECT 1 FROM analysis_documents
             WHERE id = NEW.forked_from_document_id AND session_id = NEW.session_id
@@ -1274,7 +1283,8 @@ function createOwnershipAndCycleTriggers(sqlite: Database.Database): void {
         THEN RAISE(ABORT, 'analysis branch fork document session mismatch')
       END;
       SELECT CASE
-        WHEN NEW.head_document_id IS NOT NULL
+        WHEN NEW.head_document_id IS NOT OLD.head_document_id
+          AND NEW.head_document_id IS NOT NULL
           AND NOT EXISTS (
             SELECT 1 FROM analysis_documents
             WHERE id = NEW.head_document_id AND branch_id = NEW.id
