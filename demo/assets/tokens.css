@@ -1,0 +1,142 @@
+/* ============================================================
+   AI Reader · 主题 Token 层
+   （本文件即未来 globals.css 的草稿，确认后可平移到主项目）
+   架构：:root 放与主题无关的静态 token；
+         [data-theme] 只定义颜色，组件 CSS 一律引用变量。
+   ============================================================ */
+
+:root {
+  /* ---------- 字体 ---------- */
+  --font-ui: 'Roboto', 'Noto Sans SC', system-ui, -apple-system, sans-serif;
+  --font-display: 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+
+  /* ---------- 字号（不随视口缩放） ---------- */
+  --fs-caption: 12px;
+  --fs-body: 14px;
+  --fs-body-lg: 15px;
+  --fs-title: 17px;
+  --fs-headline: 22px;
+  --fs-display: 28px;
+
+  /* ---------- 间距（4px 基线） ---------- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+
+  /* ---------- 圆角 ---------- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  /* ---------- 动效 ---------- */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 150ms;
+  --dur-med: 220ms;
+}
+
+/* ============================================================
+   白色主题（白主蓝辅）
+   ============================================================ */
+:root,
+[data-theme='white'] {
+  --surface: #f7f9fc;
+  --surface-1: #ffffff;            /* 内容卡片 / 正文底 */
+  --surface-2: #f1f4f9;            /* 侧栏底 */
+  --surface-3: #e9eef6;            /* 抬升容器 */
+  --surface-4: #dfe6f1;            /* 最高层级容器 */
+
+  --on-surface: #191d26;
+  --on-surface-variant: #5b6474;
+
+  --outline: #97a1b3;
+  --outline-variant: #d9e0eb;
+
+  --primary: #1d5fd6;
+  --on-primary: #ffffff;
+  --primary-container: #dce8ff;
+  --on-primary-container: #0b2f73;
+
+  /* 语义扩展：辅色（蓝） */
+  --accent-strong: #1248a8;        /* 标题、强调文字 */
+  --accent-soft: rgba(29, 95, 214, 0.08);
+  --accent-border: rgba(29, 95, 214, 0.35);
+  --title-accent: #1248a8;
+  --panel-border: #e2e8f2;
+
+  /* 用户气泡 */
+  --user-bubble-bg: #1d5fd6;
+  --user-bubble-text: #ffffff;
+  --user-bubble-border: transparent;
+
+  /* 批注高亮 */
+  --mark-bg: #ffefb8;
+  --mark-text: #4a3a00;
+
+  --error: #c03535;
+  --success: #2e7d46;
+  --warning: #9a6b00;
+
+  --code-bg: #f0f3f9;
+  --inverse-surface: #22262e;
+  --inverse-on-surface: #f2f5fa;
+
+  --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+  --shadow-2: 0 4px 12px rgba(16, 24, 40, 0.12), 0 2px 4px rgba(16, 24, 40, 0.06);
+  --selection-bg: rgba(29, 95, 214, 0.18);
+}
+
+/* ============================================================
+   黑金主题（深炭黑底 + 香槟金：标题、边框、强调均为金色）
+   ============================================================ */
+[data-theme='black-gold'] {
+  --surface: #0b0a08;
+  --surface-1: #100e0b;
+  --surface-2: #16130e;
+  --surface-3: #1c1912;
+  --surface-4: #242017;
+
+  --on-surface: #ede4ce;
+  --on-surface-variant: #a3937a;
+
+  --outline: #8a7a58;
+  --outline-variant: #322b1b;
+
+  --primary: #c9a227;
+  --on-primary: #241c05;
+  --primary-container: #3d310f;
+  --on-primary-container: #f2db8e;
+
+  /* 语义扩展：金 */
+  --accent-strong: #e8c766;        /* 亮金：标题、激活态 */
+  --accent-soft: rgba(201, 162, 39, 0.1);
+  --accent-border: rgba(201, 162, 39, 0.4);
+  --title-accent: #e8c766;
+  --panel-border: rgba(201, 162, 39, 0.16);
+
+  /* 用户气泡：深铜底 + 金边 */
+  --user-bubble-bg: #2a2110;
+  --user-bubble-text: #f2e7c8;
+  --user-bubble-border: #6e5820;
+
+  /* 批注高亮：半透明金 */
+  --mark-bg: rgba(201, 162, 39, 0.32);
+  --mark-text: #f7e9be;
+
+  --error: #e0615b;
+  --success: #6fbf8a;
+  --warning: #d9a441;
+
+  --code-bg: #171410;
+  --inverse-surface: #f0e7d0;
+  --inverse-on-surface: #241c05;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 6px 20px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --selection-bg: rgba(201, 162, 39, 0.3);
+}

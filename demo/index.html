@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="black-gold">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Reader · 界面设计预览</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap"
+    />
+    <link rel="stylesheet" href="./assets/tokens.css" />
+    <link rel="stylesheet" href="./assets/demo.css" />
+  </head>
+  <body>
+    <!-- Demo 顶栏（演示框架，不属于产品设计） -->
+    <header class="demo-bar">
+      <div class="demo-brand">
+        <span class="demo-badge">DEMO</span>
+        <h1>AI Reader · 界面设计预览</h1>
+      </div>
+      <nav class="demo-tabs" role="tablist" aria-label="界面切换">
+        <button class="active" data-screen="workbench" role="tab" aria-selected="true">
+          <span class="material-symbols-rounded">terminal</span>代码分析工作台
+        </button>
+        <button data-screen="reader" role="tab" aria-selected="false">
+          <span class="material-symbols-rounded">menu_book</span>阅读器
+        </button>
+        <button data-screen="tokens" role="tab" aria-selected="false">
+          <span class="material-symbols-rounded">palette</span>主题 Tokens
+        </button>
+      </nav>
+      <button id="themeToggle" class="theme-toggle" aria-label="切换主题">
+        <span class="material-symbols-rounded" id="themeIcon">light_mode</span>
+        <span id="themeLabel">切换白色</span>
+      </button>
+    </header>
+
+    <!-- ============ 屏幕一：代码分析工作台 ============ -->
+    <section class="screen active" id="screen-workbench">
+      <div class="wb">
+        <!-- 左：项目侧栏 -->
+        <aside class="wb-left">
+          <div class="brand">
+            <span class="brand-mark">
+              <span class="material-symbols-rounded">auto_stories</span>
+            </span>
+            <div>
+              <div class="brand-name">AI Reader</div>
+              <div class="brand-sub">代码分析工作台</div>
+            </div>
+          </div>
+          <div class="wb-left-actions">
+            <button class="pill-btn">
+              <span class="material-symbols-rounded">add</span>新建分析
+            </button>
+          </div>
+          <div class="tree">
+            <div class="side-section">
+              <div class="side-section-title">项目</div>
+              <button class="tree-row folder">
+                <span class="material-symbols-rounded">folder_open</span>
+                <span class="row-label">AI-Reader</span>
+                <span class="row-count">12</span>
+              </button>
+              <button class="tree-row child">
+                <span class="material-symbols-rounded">chat_bubble_outline</span>
+                <span class="row-label">数据库迁移方案评估</span>
+              </button>
+              <button class="tree-row child active">
+                <span class="material-symbols-rounded">forum</span>
+                <span class="row-label">IPC 流式转发优化</span>
+                <span class="row-count">3</span>
+              </button>
+              <button class="tree-row child">
+                <span class="material-symbols-rounded">chat_bubble_outline</span>
+                <span class="row-label">TextAnchor 匹配算法走查</span>
+              </button>
+              <button class="tree-row folder">
+                <span class="material-symbols-rounded">folder</span>
+                <span class="row-label">n8n-workflow</span>
+                <span class="row-count">5</span>
+              </button>
+              <button class="tree-row folder">
+                <span class="material-symbols-rounded">folder</span>
+                <span class="row-label">WolfKiller</span>
+                <span class="row-count">2</span>
+              </button>
+            </div>
+            <div class="side-section">
+              <div class="side-section-title">最近文档</div>
+              <button class="tree-row">
+                <span class="material-symbols-rounded">description</span>
+                <span class="row-label">IPC 流式转发优化 · 第 3 轮报告</span>
+              </button>
+              <button class="tree-row">
+                <span class="material-symbols-rounded">description</span>
+                <span class="row-label">数据库迁移方案评估 · 摘要</span>
+              </button>
+            </div>
+          </div>
+          <div class="wb-left-footer">
+            <select class="lang-select" aria-label="界面语言">
+              <option>简体中文</option>
+              <option>English</option>
+            </select>
+            <button class="icon-btn" aria-label="设置" title="设置">
+              <span class="material-symbols-rounded">settings</span>
+            </button>
+          </div>
+        </aside>
+
+        <!-- 中：会话区 -->
+        <div class="wb-center">
+          <div class="crumb-bar">
+            <div class="crumb">
+              <span class="material-symbols-rounded">folder_open</span>
+              AI-Reader
+              <span class="material-symbols-rounded">chevron_right</span>
+              <strong>IPC 流式转发优化</strong>
+            </div>
+            <div class="spacer"></div>
+            <button class="icon-btn" aria-label="历史" title="历史">
+              <span class="material-symbols-rounded">history</span>
+            </button>
+            <button class="icon-btn" aria-label="导出" title="导出">
+              <span class="material-symbols-rounded">download</span>
+            </button>
+          </div>
+          <div class="conversation" id="conversation">
+            <div class="conversation-inner" id="conversationInner">
+              <div class="msg-row user">
+                <div class="msg-user">
+                  帮我分析 main 进程里 IPC 流式转发这块的实现，看看有没有可以简化的地方。
+                </div>
+              </div>
+              <div class="msg-row">
+                <div class="msg-assistant">
+                  <div class="msg-meta">
+                    <span class="avatar">
+                      <span class="material-symbols-rounded">smart_toy</span>
+                    </span>
+                    <strong>AI 分析助手</strong>
+                    <span>deepseek-chat · 第 3 轮 · 耗时 8.2s</span>
+                  </div>
+                  <div class="md">
+                    <h3>IPC 流式转发：现状与优化建议</h3>
+                    <p>
+                      当前实现位于 <code>main/ipc/llm.ts</code>，采用
+                      <code>ipcMain.handle</code> 接收请求后，在主进程内消费
+                      LLM 流并逐块通过 <code>webContents.send</code> 推送到渲染进程。
+                    </p>
+                    <ol>
+                      <li><strong>现状</strong>：每个 chunk 一次 IPC 消息，高频小消息在
+                        <code>for await</code> 循环中没有背压控制。</li>
+                      <li><strong>问题</strong>：渲染进程被销毁后继续
+                        <mark>send 会抛异常</mark>；停止信号依赖渲染进程主动发
+                        <code>llm:abort</code>，主进程未做兜底。</li>
+                      <li><strong>建议</strong>：抽一个 <code>StreamBridge</code>
+                        统一管理流生命周期，集中处理销毁、停止与错误三类收尾。</li>
+                    </ol>
+                    <pre><code>// main/ipc/llm.ts —— 现状（第 42 行起）
+ipcMain.handle('llm:chat', async (event, payload) =&gt; {
+  const stream = provider.stream(payload);
+  for await (const chunk of stream) {
+    event.sender.send('llm:chunk', chunk); // 无 isDestroyed 判断
+  }
+});</code></pre>
+                    <p>
+                      改造后每轮会话的 IPC 消息数可以从 N+2 条降为 2 条控制消息
+                      + 数据块批量推送，异常路径也能统一收口。
+                    </p>
+                  </div>
+                  <div class="msg-actions">
+                    <button class="icon-btn" aria-label="复制" title="复制">
+                      <span class="material-symbols-rounded">content_copy</span>
+                    </button>
+                    <button class="icon-btn" aria-label="重试" title="重试">
+                      <span class="material-symbols-rounded">refresh</span>
+                    </button>
+                    <button class="icon-btn" aria-label="导出本节" title="导出本节">
+                      <span class="material-symbols-rounded">ios_share</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="prompt-wrap">
+            <div class="prompt-box">
+              <textarea
+                id="promptInput"
+                rows="2"
+                placeholder="继续追问，或输入新的分析目标…（Enter 发送，Shift+Enter 换行）"
+              ></textarea>
+              <div class="prompt-toolbar">
+                <button class="icon-btn" aria-label="附加上下文" title="附加上下文">
+                  <span class="material-symbols-rounded">attach_file</span>
+                </button>
+                <button class="icon-btn" aria-label="选择模型" title="选择模型">
+                  <span class="material-symbols-rounded">neurology</span>
+                </button>
+                <div class="spacer"></div>
+                <button class="send-btn" id="sendBtn" aria-label="发送">
+                  <span class="material-symbols-rounded">arrow_upward</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右：批注 / 工具调用 -->
+        <aside class="wb-right">
+          <div class="panel-tabs" role="tablist" aria-label="右侧面板">
+            <button class="active" data-pane="annotations" role="tab" aria-selected="true">
+              批注 2
+            </button>
+            <button data-pane="traces" role="tab" aria-selected="false">工具调用 4</button>
+          </div>
+          <div class="panel-body">
+            <div class="panel-pane active" id="pane-annotations">
+              <div class="ann-card">
+                <div class="ann-quote">event.sender.send('llm:chunk', chunk); // 无 isDestroyed 判断</div>
+                <div class="ann-note">
+                  这里如果 renderer 已销毁会抛异常吗？建议在 send 前加
+                  webContents.isDestroyed() 判断。
+                </div>
+                <div class="ann-foot">
+                  <span class="chip">疑问</span>
+                  <span class="ann-time">10:24</span>
+                </div>
+              </div>
+              <div class="ann-card">
+                <div class="ann-quote">for await (const chunk of stream)</div>
+                <div class="ann-note">Node 16+ 对 Readable 的异步迭代支持已稳定，用法没问题。</div>
+                <div class="ann-foot">
+                  <span class="chip">已确认</span>
+                  <span class="ann-time">10:31</span>
+                </div>
+              </div>
+              <div class="composer">
+                <div class="composer-inner">
+                  <input type="text" placeholder="就选中内容写批注或提问…" aria-label="批注输入" />
+                  <button class="send-btn" aria-label="提交批注">
+                    <span class="material-symbols-rounded">north</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="panel-pane" id="pane-traces">
+              <div class="trace-item done">
+                <span class="trace-icon">
+                  <span class="material-symbols-rounded">check</span>
+                </span>
+                <div class="trace-info">
+                  <div class="trace-name">读取文件</div>
+                  <div class="trace-detail">main/ipc/llm.ts · 214 行</div>
+                </div>
+                <span class="trace-dur">0.3s</span>
+              </div>
+              <div class="trace-item done">
+                <span class="trace-icon">
+                  <span class="material-symbols-rounded">check</span>
+                </span>
+                <div class="trace-info">
+                  <div class="trace-name">全局搜索</div>
+                  <div class="trace-detail">webContents.send · 命中 18 处</div>
+                </div>
+                <span class="trace-dur">1.1s</span>
+              </div>
+              <div class="trace-item done">
+                <span class="trace-icon">
+                  <span class="material-symbols-rounded">check</span>
+                </span>
+                <div class="trace-info">
+                  <div class="trace-name">调用链分析</div>
+                  <div class="trace-detail">llm:chat → provider.stream → 渲染进程</div>
+                </div>
+                <span class="trace-dur">5.4s</span>
+              </div>
+              <div class="trace-item running">
+                <span class="trace-icon">
+                  <span class="material-symbols-rounded">progress_activity</span>
+                </span>
+                <div class="trace-info">
+                  <div class="trace-name">生成分析报告</div>
+                  <div class="trace-detail">流式输出中…</div>
+                </div>
+                <span class="trace-dur">1.4s</span>
+              </div>
+            </div>
+          </div>
+          <div class="panel-foot">
+            <button class="ghost-btn">
+              <span class="material-symbols-rounded">download</span>导出 Markdown
+            </button>
+            <button class="ghost-btn">
+              <span class="material-symbols-rounded">picture_as_pdf</span>PDF
+            </button>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ============ 屏幕二：阅读器 ============ -->
+    <section class="screen" id="screen-reader">
+      <div class="rd">
+        <!-- 左：目录 -->
+        <aside class="rd-side left">
+          <div class="side-header">
+            <h2>目录</h2>
+            <button class="icon-btn" aria-label="折叠目录" title="折叠目录">
+              <span class="material-symbols-rounded">chevron_left</span>
+            </button>
+          </div>
+          <div class="outline">
+            <div class="outline-chapter">第 1 章 · 进程模型总览</div>
+            <button class="tree-row child">
+              <span class="row-label">1.1 主进程的职责边界</span>
+            </button>
+            <button class="tree-row child">
+              <span class="row-label">1.2 渲染进程与沙箱隔离</span>
+            </button>
+            <div class="outline-chapter">第 2 章 · contextBridge 与安全</div>
+            <button class="tree-row child">
+              <span class="row-label">2.1 最小暴露原则</span>
+            </button>
+            <div class="outline-chapter">第 3 章 · IPC 通信</div>
+            <button class="tree-row child">
+              <span class="row-label">3.1 消息通道与序列化</span>
+            </button>
+            <button class="tree-row child active">
+              <span class="material-symbols-rounded">bookmark</span>
+              <span class="row-label">3.2 IPC 通信的三种模式</span>
+            </button>
+            <button class="tree-row child">
+              <span class="row-label">3.3 大数据量的流式传输</span>
+            </button>
+            <div class="outline-chapter">第 4 章 · 调试与性能</div>
+            <button class="tree-row child">
+              <span class="row-label">4.1 IPC 消息追踪</span>
+            </button>
+          </div>
+        </aside>
+
+        <!-- 中：正文 -->
+        <div class="rd-center">
+          <article class="article">
+            <div class="article-kicker">AI 生成导读 · Electron 进程模型精讲</div>
+            <h1>3.2 IPC 通信的三种模式</h1>
+            <div class="article-meta">
+              <span>
+                <span class="material-symbols-rounded">schedule</span>约 6 分钟
+              </span>
+              <span>
+                <span class="material-symbols-rounded">edit_note</span>3 条批注
+              </span>
+              <span>
+                <span class="material-symbols-rounded">auto_awesome</span>由第 3 章原文蒸馏
+              </span>
+            </div>
+            <p>
+              Electron 的进程间通信表面上只有
+              <code>ipcMain</code> 与 <code>ipcRenderer</code>
+              两个模块，但实际使用中会分化出三种截然不同的模式：一次性请求、事件订阅与流式传输。
+              理解它们的差异，是设计稳定桌面应用通信层的前提。
+            </p>
+            <p>
+              第一种模式是 Promise 风格的双向调用：
+              <mark>ipcMain.handle 与 ipcRenderer.invoke 构成一对请求-响应原语</mark>，
+              适合导入文件、读取配置这类「问一次答一次」的场景。它的好处是错误可以沿
+              Promise 链自然传播，调用方用 try/catch 就能收口。
+            </p>
+            <h2>事件订阅模式</h2>
+            <p>
+              第二种模式基于 <code>send</code> 与 <code>on</code>
+              的事件订阅，适合主进程主动向渲染进程推送状态，例如任务进度、托盘通知。
+              与 invoke 不同，事件订阅没有内建的完成语义，需要自行约定「结束事件」。
+            </p>
+            <blockquote>
+              经验法则：能用一个 Promise 表达完成的，就不要拆成多个事件；
+              事件流只留给「持续时间不确定、中途可能取消」的场景。
+            </blockquote>
+            <p>
+              第三种流式传输则是前两种的混合：以 invoke 建立会话，再以事件通道持续推送数据块。
+              LLM 流式输出是最典型的例子，本章后续小节会给出完整的背压与取消实现。
+            </p>
+          </article>
+          <!-- 划词浮动工具条（静态演示定位） -->
+          <div class="sel-toolbar-demo" id="selToolbar" role="toolbar" aria-label="划词操作">
+            <button>
+              <span class="material-symbols-rounded">edit_note</span>批注
+            </button>
+            <button>
+              <span class="material-symbols-rounded">forum</span>提问
+            </button>
+            <span class="divider"></span>
+            <button aria-label="复制">
+              <span class="material-symbols-rounded">content_copy</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 右：批注与讨论 -->
+        <aside class="rd-side right">
+          <div class="side-header">
+            <h2>批注与讨论</h2>
+            <button class="icon-btn" aria-label="折叠批注" title="折叠批注">
+              <span class="material-symbols-rounded">chevron_right</span>
+            </button>
+          </div>
+          <div class="panel-body">
+            <div class="panel-pane active">
+              <div class="ann-card">
+                <div class="ann-quote">ipcMain.handle 与 ipcRenderer.invoke 构成一对请求-响应原语</div>
+                <div class="ann-note">
+                  核心区别：invoke/handle 有返回值，send/on 没有。批注锚点用
+                  TextAnchor 三层匹配定位。
+                </div>
+                <div class="ann-foot">
+                  <span class="chip">要点</span>
+                  <span class="ann-time">昨天 21:08</span>
+                </div>
+              </div>
+              <div class="disc-item">
+                <span class="who">
+                  <span class="material-symbols-rounded">person</span>我
+                </span>
+                <p>事件订阅模式下主进程异常退出，渲染进程的监听器会怎样？</p>
+              </div>
+              <div class="disc-item">
+                <span class="who">
+                  <span class="material-symbols-rounded">smart_toy</span>AI 助教
+                </span>
+                <p>
+                  监听器本身不会报错，但通道随 webContents 销毁而失效。
+                  建议在 preload 侧封装订阅时统一返回取消函数，并在主进程侧做心跳兜底……
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="composer">
+            <div class="composer-inner">
+              <input type="text" placeholder="追问 AI，或记录你的想法…" aria-label="讨论输入" />
+              <button class="send-btn" aria-label="发送">
+                <span class="material-symbols-rounded">north</span>
+              </button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ============ 屏幕三：主题 Tokens 对照 ============ -->
+    <section class="screen" id="screen-tokens">
+      <div class="tk">
+        <div class="tk-panel" data-theme="white">
+          <div class="tk-panel-head">
+            <span class="material-symbols-rounded">light_mode</span>
+            <h3>白色主题 · 白主蓝辅</h3>
+          </div>
+          <div class="tk-panel-body" id="tkWhite"></div>
+        </div>
+        <div class="tk-panel" data-theme="black-gold">
+          <div class="tk-panel-head">
+            <span class="material-symbols-rounded">dark_mode</span>
+            <h3>黑金主题 · 深炭黑 + 香槟金</h3>
+          </div>
+          <div class="tk-panel-body" id="tkGold"></div>
+        </div>
+      </div>
+    </section>
+
+    <script src="./assets/demo.js"></script>
+  </body>
+</html>
