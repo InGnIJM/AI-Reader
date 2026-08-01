@@ -235,6 +235,11 @@ export interface CodeAnalysisDeleteSessionPayload {
   confirmed: true;
 }
 
+export interface CodeAnalysisForkSessionPayload {
+  sessionId: string;
+  documentId: string;
+}
+
 export interface CodeAnalysisRunTurnPayload {
   sessionId?: string;
   projectId?: string | null;
