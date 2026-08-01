@@ -4,6 +4,7 @@ import { is } from '@electron-toolkit/utils';
 import { createLogger } from '@ai-reader/shared';
 import { createDatabase } from './db/client';
 import { registerAllHandlers } from './ipc';
+import { createMainWindowOptions } from './window-options';
 
 const log = createLogger('main');
 
@@ -81,19 +82,9 @@ function buildMenu(): void {
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): void {
-  mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    minWidth: 1024,
-    minHeight: 768,
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-    titleBarStyle: 'hiddenInset',
-    show: false,
-  });
+  mainWindow = new BrowserWindow(
+    createMainWindowOptions(join(__dirname, '../preload/index.js')),
+  );
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show();
