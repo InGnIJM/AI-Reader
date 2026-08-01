@@ -5,10 +5,17 @@ import styles from './ThemeToggle.module.css';
  * 主题切换按钮：黑金 ⇄ 白色。
  * 图标表达「点击后切到哪个主题」——当前黑金时显示太阳（切白色）。
  */
-export default function ThemeToggle() {
+interface ThemeToggleLabels {
+  toWhite: string;
+  toBlackGold: string;
+}
+
+export default function ThemeToggle({ labels }: { labels?: ThemeToggleLabels }) {
   const { theme, toggleTheme } = useTheme();
   const isBlackGold = theme === 'black-gold';
-  const actionLabel = isBlackGold ? '切换到白色主题' : '切换到黑金主题';
+  const actionLabel = isBlackGold
+    ? labels?.toWhite ?? '切换到白色主题'
+    : labels?.toBlackGold ?? '切换到黑金主题';
 
   return (
     <button

@@ -4,6 +4,14 @@ export type { AppLanguage };
 
 export const codeAnalysisText = {
   'zh-CN': {
+    appName: 'AI 学习助手',
+    appTagline: '沉浸式学习工作台',
+    contextNavigation: '当前上下文',
+    contextWorkspace: '工作区',
+    contextLocal: '本地内容',
+    contextNewSession: '新建会话',
+    switchToWhiteTheme: '切换到亮色主题',
+    switchToBlackGoldTheme: '切换到黑金主题',
     projects: '项目',
     conversations: '对话记录',
     recentConversations: '最近会话',
@@ -63,6 +71,14 @@ export const codeAnalysisText = {
     archivedSessionReadOnly: '已归档会话为只读状态，恢复后才能继续对话。',
   },
   'en-US': {
+    appName: 'AI Reader',
+    appTagline: 'Focused learning workspace',
+    contextNavigation: 'Current context',
+    contextWorkspace: 'Workspace',
+    contextLocal: 'No project',
+    contextNewSession: 'New session',
+    switchToWhiteTheme: 'Switch to light theme',
+    switchToBlackGoldTheme: 'Switch to black-gold theme',
     projects: 'Projects',
     conversations: 'Conversations',
     recentConversations: 'Recent',
