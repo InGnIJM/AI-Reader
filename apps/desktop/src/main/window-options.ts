@@ -1,5 +1,21 @@
 import type { BrowserWindowConstructorOptions } from 'electron';
 
+export type TitleBarTheme = 'white' | 'black-gold';
+
+export function createTitleBarOverlay(theme: TitleBarTheme) {
+  return theme === 'white'
+    ? {
+        color: '#F4F2EE',
+        symbolColor: '#1E252C',
+        height: 48,
+      }
+    : {
+        color: '#10100F',
+        symbolColor: '#F2EAD8',
+        height: 48,
+      };
+}
+
 export function createMainWindowOptions(
   preload: string,
   platform: NodeJS.Platform = process.platform,
@@ -21,11 +37,7 @@ export function createMainWindowOptions(
     return {
       ...options,
       titleBarStyle: 'hidden',
-      titleBarOverlay: {
-        color: '#10100F',
-        symbolColor: '#F2EAD8',
-        height: 48,
-      },
+      titleBarOverlay: createTitleBarOverlay('black-gold'),
     };
   }
 
