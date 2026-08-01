@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
+import ThemeToggle from '../components/common/ThemeToggle';
 import styles from './ReaderLayout.module.css';
 
 export interface ReaderLayoutProps {
@@ -126,13 +127,14 @@ export default function ReaderLayout({
             <span className="material-symbols-rounded">upload_file</span>
           </button>
           {toolbar}
+          <div className={styles.toolbarSpacer} />
+          <ThemeToggle />
           {annotationCollapsed && (
             <button
               className={styles.iconButton}
               onClick={toggleAnnotation}
               aria-label="展开批注面板"
               title="展开批注面板"
-              style={{ marginLeft: 'auto' }}
             >
               <span className="material-symbols-rounded">chat_bubble_outline</span>
             </button>
