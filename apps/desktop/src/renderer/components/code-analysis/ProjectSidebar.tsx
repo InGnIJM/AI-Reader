@@ -635,7 +635,8 @@ export function ProjectSidebar({
               setSessionMenu(null);
             }}
           >
-            {labels.deleteSession ?? 'Delete'}
+            <span className="material-symbols-rounded" aria-hidden="true">delete_outline</span>
+            <span>{labels.deleteSession ?? 'Delete'}</span>
           </button>
         </div>
       ) : null}
@@ -673,7 +674,8 @@ export function ProjectSidebar({
                   setDeletingSession(null);
                 }}
               >
-                {labels.confirmDelete ?? 'Delete permanently'}
+                <span className="material-symbols-rounded" aria-hidden="true">delete_forever</span>
+                <span>{labels.confirmDelete ?? 'Delete permanently'}</span>
               </button>
             </div>
           </div>

@@ -154,7 +154,7 @@ export function AnnotationSidebar({
                   title={deleteLabel}
                   data-testid={`annotation-delete-${annotation.id}`}
                 >
-                  <span className="material-symbols-rounded" aria-hidden="true">delete</span>
+                  <span className="material-symbols-rounded" aria-hidden="true">delete_outline</span>
                   <span className={styles.deleteAnnotationLabel}>{deleteLabel}</span>
                 </button>
               )}
@@ -258,7 +258,8 @@ export function AnnotationSidebar({
                   setDeletingAnnotation(null);
                 }}
               >
-                {confirmDeleteLabel}
+                <span className="material-symbols-rounded" aria-hidden="true">delete_forever</span>
+                <span>{confirmDeleteLabel}</span>
               </button>
             </div>
           </div>

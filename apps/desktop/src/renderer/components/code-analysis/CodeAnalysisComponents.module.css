@@ -524,20 +524,32 @@
   z-index: 1;
   display: inline-flex;
   align-items: center;
-  min-height: 24px;
-  gap: 3px;
+  min-height: 32px;
+  gap: var(--md-sys-spacing-xs);
   border: 1px solid var(--md-sys-color-error);
   border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-error-container);
-  color: var(--md-sys-color-on-error-container);
+  background: transparent;
+  color: var(--md-sys-color-error);
   cursor: pointer;
-  padding: 1px 8px;
+  padding: 0 10px;
   font-size: var(--md-sys-typescale-label-small);
-  font-weight: 500;
+  font-weight: 700;
+  letter-spacing: 0.1px;
+  transition: background-color var(--md-sys-motion-duration-fast)
+      var(--md-sys-motion-easing-standard),
+    color var(--md-sys-motion-duration-fast) var(--md-sys-motion-easing-standard),
+    box-shadow var(--md-sys-motion-duration-fast) var(--md-sys-motion-easing-standard),
+    transform var(--md-sys-motion-duration-fast) var(--md-sys-motion-easing-standard);
 }
 
 .deleteAnnotationBtn:hover {
-  filter: brightness(1.05);
+  background: var(--md-sys-color-error);
+  color: var(--md-sys-color-on-error);
+  box-shadow: var(--md-sys-elevation-1);
+}
+
+.deleteAnnotationBtn:active {
+  transform: scale(0.97);
 }
 
 .deleteAnnotationBtn:focus-visible {
@@ -546,7 +558,7 @@
 }
 
 .deleteAnnotationBtn .material-symbols-rounded {
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .deleteAnnotationLabel {
@@ -897,6 +909,19 @@
 
 .contextMenu button[data-variant='danger'] {
   color: var(--md-sys-color-error);
+  font-weight: 600;
+}
+
+.contextMenu button[data-variant='danger'],
+.confirmActions button[data-variant='danger'] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--md-sys-spacing-xs);
+}
+
+.contextMenu button[data-variant='danger'] .material-symbols-rounded,
+.confirmActions button[data-variant='danger'] .material-symbols-rounded {
+  font-size: 16px;
 }
 
 .dialogBackdrop {
@@ -958,6 +983,15 @@
   border-color: var(--md-sys-color-error);
   background: var(--md-sys-color-error);
   color: var(--md-sys-color-on-error);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--md-sys-color-error) 28%, transparent);
+}
+
+.confirmActions button[data-variant='danger']:hover {
+  filter: brightness(1.06);
+}
+
+.confirmActions button[data-variant='danger']:active {
+  transform: scale(0.98);
 }
 
 .inlineInput {
