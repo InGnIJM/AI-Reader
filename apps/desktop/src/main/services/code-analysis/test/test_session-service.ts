@@ -378,6 +378,113 @@ describe('AnalysisSessionService', () => {
 
   // ── deletePermanently ─────────────────────────────────────────────────────
 
++  describe('forkAsIndependentSession', () => {
+    it('copies the selected turn path and its related records into an independent session', async () => {
+      const { sessionId, branchId, documentId: rootDocumentId } = insertSession(db);
+      const secondDocumentId = insertDocument(db, sessionId, branchId, {
+        parentDocumentId: rootDocumentId,
+        goal: 'Second turn',
+      });
+      const now = new Date().toISOString();
+      db.db
+        .prepare('UPDATE analysis_branches SET head_document_id = ? WHERE id = ?')
+        .run(secondDocumentId, branchId);
+      db.db
+        .prepare(
+          'UPDATE analysis_sessions SET active_document_id = ?, updated_at = ? WHERE id = ?',
+        )
+        .run(secondDocumentId, now, sessionId);
+
+      const rootTraceId = randomUUID();
+      const secondTraceId = randomUUID();
+      const annotationId = randomUUID();
+      const messageId = randomUUID();
+      const insertTrace = db.db.prepare(
+        `INSERT INTO analysis_tool_traces
+           (id, analysis_document_id, step_index, tool_name, tool_args_json, result_summary, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      );
+      insertTrace.run(rootTraceId, rootDocumentId, 0, 'read_file', '{}', 'root trace', now);
+      insertTrace.run(secondTraceId, secondDocumentId, 1, 'search', '{}', 'second trace', now);
+      db.db
+        .prepare(
+          `INSERT INTO analysis_annotations
+             (id, analysis_document_id, anchor_start_offset, anchor_end_offset,
+              anchor_exact_text, selected_text, anchor_prefix, anchor_suffix,
+              question, status, created_at, updated_at)
+           VALUES (?, ?, 0, 4, 'Test', 'Test', '', '', 'Why?', 'answered', ?, ?)`,
+        )
+        .run(annotationId, rootDocumentId, now, now);
+      db.db
+        .prepare(
+          `INSERT INTO analysis_discussion_messages
+             (id, annotation_id, role, content, model_id, created_at)
+           VALUES (?, ?, 'assistant', 'Because.', 'test-model', ?)`,
+        )
+        .run(messageId, annotationId, now);
+
+      const clonedSession = await service.forkAsIndependentSession({
+        sessionId,
+        documentId: secondDocumentId,
+      });
+
+      const clonedDetail = await service.getDetail(clonedSession.id);
+      expect(clonedDetail?.session).toMatchObject({
+        title: 'Test Session · Branch',
+        status: 'active',
+      });
+      expect(clonedDetail?.branches).toHaveLength(1);
+      expect(clonedDetail?.branches[0]).toMatchObject({
+        parentBranchId: null,
+        forkedFromDocumentId: null,
+      });
+      expect(clonedDetail?.turns.map((turn) => turn.goal)).toEqual(['Test goal', 'Second turn']);
+      expect(clonedDetail?.turns[1]?.parentDocumentId).toBe(clonedDetail?.turns[0]?.id);
+      expect(clonedDetail?.session.activeDocumentId).toBe(clonedDetail?.turns[1]?.id);
+
+      const copiedTraceCount = db.db
+        .prepare(
+          `SELECT COUNT(*) AS count
+           FROM analysis_tool_traces AS trace
+           JOIN analysis_documents AS document ON document.id = trace.analysis_document_id
+           WHERE document.session_id = ?`,
+        )
+        .get(clonedSession.id) as { count: number };
+      expect(copiedTraceCount.count).toBe(2);
+      const copiedAnnotation = db.db
+        .prepare(
+          `SELECT annotation.id, annotation.analysis_document_id
+           FROM analysis_annotations AS annotation
+           JOIN analysis_documents AS document ON document.id = annotation.analysis_document_id
+           WHERE document.session_id = ?`,
+        )
+        .get(clonedSession.id) as { id: string; analysis_document_id: string };
+      expect(copiedAnnotation).toMatchObject({
+        analysis_document_id: clonedDetail?.turns[0]?.id,
+      });
+      expect(copiedAnnotation.id).not.toBe(annotationId);
+      expect(
+        db.db
+          .prepare('SELECT annotation_id FROM analysis_discussion_messages WHERE annotation_id = ?')
+          .get(copiedAnnotation.id),
+      ).toEqual({ annotation_id: copiedAnnotation.id });
+
+      await service.deletePermanently(sessionId, true);
+      expect(await service.getDetail(clonedSession.id)).not.toBeNull();
+    });
+
+    it('rejects a fork point from another session without copying records', async () => {
+      const { sessionId } = insertSession(db);
+      const { documentId: otherDocumentId } = insertSession(db);
+
+      await expect(
+        service.forkAsIndependentSession({ sessionId, documentId: otherDocumentId }),
+      ).rejects.toThrow(/INVALID_OWNERSHIP/);
+      expect(sessionRowCount(db)).toBe(2);
+    });
+  });
+
+
   describe('deletePermanently', () => {
     it('deletes session and enqueues file cleanup in one transaction', async () => {
       const { sessionId, documentId } = insertSession(db);
