@@ -1,56 +1,20 @@
-/* ========================================
-   M3 Design Tokens — Light Theme (Blue-White)
-   ======================================== */
+/* ============================================================
+   AI Reader · Design Tokens
+   架构：
+   - :root 静态层：字体 / 字号 / 间距 / 圆角 / 布局尺寸（与主题无关）
+   - :root + [data-theme='white']：白色主题（白主蓝辅，默认）
+   - [data-theme='black-gold']：黑金主题（深炭黑 + 香槟金）
+   组件 CSS 一律引用变量，不写死颜色。切换主题 = 切换 <html> 的
+   data-theme 属性（由 ThemeContext 管理）。
+   ============================================================ */
+
 :root {
-  /* Primary */
-  --md-sys-color-primary: #1E3A8A;
-  --md-sys-color-on-primary: #FFFFFF;
-  --md-sys-color-primary-container: #DBE4FF;
-  --md-sys-color-on-primary-container: #001A41;
+  /* ---------- 字体 ---------- */
+  --md-sys-font-ui: 'Roboto', 'Noto Sans SC', system-ui, -apple-system, sans-serif;
+  --md-sys-font-display: 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
+  --md-sys-font-mono: 'JetBrains Mono', 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
 
-  /* Secondary */
-  --md-sys-color-secondary: #565E71;
-  --md-sys-color-on-secondary: #FFFFFF;
-  --md-sys-color-secondary-container: #DAE2F9;
-  --md-sys-color-on-secondary-container: #131C2B;
-
-  /* Tertiary */
-  --md-sys-color-tertiary: #705574;
-  --md-sys-color-on-tertiary: #FFFFFF;
-  --md-sys-color-tertiary-container: #FAD8FD;
-  --md-sys-color-on-tertiary-container: #28132F;
-
-  /* Error */
-  --md-sys-color-error: #BA1A1A;
-  --md-sys-color-on-error: #FFFFFF;
-  --md-sys-color-error-container: #FFDAD6;
-  --md-sys-color-on-error-container: #410002;
-
-  /* Surface */
-  --md-sys-color-surface: #F8FAFC;
-  --md-sys-color-on-surface: #1A1C1E;
-  --md-sys-color-surface-variant: #E0E2EC;
-  --md-sys-color-on-surface-variant: #44474E;
-  --md-sys-color-surface-container-lowest: #FFFFFF;
-  --md-sys-color-surface-container-low: #F1F3F6;
-  --md-sys-color-surface-container: #EBEFFF;
-  --md-sys-color-surface-container-high: #E1E3E8;
-  --md-sys-color-surface-container-highest: #D5D7DC;
-
-  /* Outline */
-  --md-sys-color-outline: #74777F;
-  --md-sys-color-outline-variant: #C4C6CF;
-
-  /* Inverse */
-  --md-sys-color-inverse-surface: #2F3033;
-  --md-sys-color-inverse-on-surface: #F0F0F6;
-
-  /* Elevation shadow (M3 level 1–3) */
-  --md-sys-elevation-1: 0 1px 3px 1px rgba(0, 0, 0, 0.15), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --md-sys-elevation-2: 0 2px 6px 2px rgba(0, 0, 0, 0.15), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --md-sys-elevation-3: 0 4px 8px 3px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.3);
-
-  /* Typography */
+  /* ---------- Typography（不随视口缩放） ---------- */
   --md-sys-typescale-display-large: 57px;
   --md-sys-typescale-display-medium: 45px;
   --md-sys-typescale-display-small: 36px;
@@ -67,7 +31,7 @@
   --md-sys-typescale-label-medium: 12px;
   --md-sys-typescale-label-small: 11px;
 
-  /* Spacing (4px grid) */
+  /* ---------- Spacing（4px 基线） ---------- */
   --md-sys-spacing-xs: 4px;
   --md-sys-spacing-sm: 8px;
   --md-sys-spacing-md: 16px;
@@ -75,7 +39,7 @@
   --md-sys-spacing-xl: 32px;
   --md-sys-spacing-xxl: 48px;
 
-  /* Shape */
+  /* ---------- Shape ---------- */
   --md-sys-shape-corner-none: 0px;
   --md-sys-shape-corner-extra-small: 4px;
   --md-sys-shape-corner-small: 8px;
@@ -84,14 +48,174 @@
   --md-sys-shape-corner-extra-large: 28px;
   --md-sys-shape-corner-full: 9999px;
 
-  /* Layout — Reader panels */
+  /* ---------- Layout：Reader panels ---------- */
   --reader-outline-width: 260px;
   --reader-annotation-width: 340px;
+
+  /* ---------- 动效 ---------- */
+  --md-sys-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --md-sys-motion-duration-fast: 150ms;
+  --md-sys-motion-duration-med: 220ms;
 }
 
-/* ========================================
+/* ============================================================
+   白色主题（默认）：白主蓝辅
+   ============================================================ */
+:root,
+[data-theme='white'] {
+  /* Primary */
+  --md-sys-color-primary: #1d5fd6;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #dce8ff;
+  --md-sys-color-on-primary-container: #0b2f73;
+
+  /* Secondary */
+  --md-sys-color-secondary: #4d5c7a;
+  --md-sys-color-on-secondary: #ffffff;
+  --md-sys-color-secondary-container: #dbe4f6;
+  --md-sys-color-on-secondary-container: #16233c;
+
+  /* Tertiary */
+  --md-sys-color-tertiary: #6d5a7d;
+  --md-sys-color-on-tertiary: #ffffff;
+  --md-sys-color-tertiary-container: #f4e0ff;
+  --md-sys-color-on-tertiary-container: #2a1738;
+
+  /* Error */
+  --md-sys-color-error: #c03535;
+  --md-sys-color-on-error: #ffffff;
+  --md-sys-color-error-container: #fbe4e2;
+  --md-sys-color-on-error-container: #5c1111;
+
+  /* Surface */
+  --md-sys-color-surface: #f7f9fc;
+  --md-sys-color-on-surface: #191d26;
+  --md-sys-color-surface-variant: #e9eef6;
+  --md-sys-color-on-surface-variant: #5b6474;
+  --md-sys-color-surface-container-lowest: #ffffff;
+  --md-sys-color-surface-container-low: #f1f4f9;
+  --md-sys-color-surface-container: #e9eef6;
+  --md-sys-color-surface-container-high: #dfe6f1;
+  --md-sys-color-surface-container-highest: #d4dcea;
+
+  /* Outline */
+  --md-sys-color-outline: #97a1b3;
+  --md-sys-color-outline-variant: #d9e0eb;
+
+  /* Inverse */
+  --md-sys-color-inverse-surface: #22262e;
+  --md-sys-color-inverse-on-surface: #f2f5fa;
+
+  /* ---------- 语义扩展：辅色（蓝） ---------- */
+  --md-sys-color-accent-strong: #1248a8;
+  --md-sys-color-accent-soft: rgba(29, 95, 214, 0.08);
+  --md-sys-color-accent-border: rgba(29, 95, 214, 0.35);
+  --md-sys-color-title-accent: #1248a8;
+  --md-sys-color-panel-border: #e2e8f2;
+
+  /* 用户气泡 */
+  --md-sys-color-user-bubble: #1d5fd6;
+  --md-sys-color-on-user-bubble: #ffffff;
+  --md-sys-color-user-bubble-border: transparent;
+
+  /* 批注高亮 */
+  --md-sys-color-mark: #ffefb8;
+  --md-sys-color-on-mark: #4a3a00;
+
+  /* 状态色 */
+  --md-sys-color-success: #2e7d46;
+  --md-sys-color-warning: #9a6b00;
+
+  /* 代码 / 选中 */
+  --md-sys-color-code-bg: #f0f3f9;
+  --md-sys-color-selection: rgba(29, 95, 214, 0.18);
+
+  /* Elevation */
+  --md-sys-elevation-1: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+  --md-sys-elevation-2: 0 4px 12px rgba(16, 24, 40, 0.12), 0 2px 4px rgba(16, 24, 40, 0.06);
+  --md-sys-elevation-3: 0 8px 24px rgba(16, 24, 40, 0.14), 0 3px 6px rgba(16, 24, 40, 0.08);
+}
+
+/* ============================================================
+   黑金主题：深炭黑底 + 香槟金（标题、边框、强调均为金色）
+   ============================================================ */
+[data-theme='black-gold'] {
+  /* Primary */
+  --md-sys-color-primary: #c9a227;
+  --md-sys-color-on-primary: #241c05;
+  --md-sys-color-primary-container: #3d310f;
+  --md-sys-color-on-primary-container: #f2db8e;
+
+  /* Secondary */
+  --md-sys-color-secondary: #a89b7c;
+  --md-sys-color-on-secondary: #241e0f;
+  --md-sys-color-secondary-container: #3a3320;
+  --md-sys-color-on-secondary-container: #e6dcbf;
+
+  /* Tertiary */
+  --md-sys-color-tertiary: #b39ddb;
+  --md-sys-color-on-tertiary: #2c1f45;
+  --md-sys-color-tertiary-container: #443465;
+  --md-sys-color-on-tertiary-container: #ecdefc;
+
+  /* Error */
+  --md-sys-color-error: #e0615b;
+  --md-sys-color-on-error: #3d0a08;
+  --md-sys-color-error-container: #5a1f1a;
+  --md-sys-color-on-error-container: #f5c6c2;
+
+  /* Surface */
+  --md-sys-color-surface: #0b0a08;
+  --md-sys-color-on-surface: #ede4ce;
+  --md-sys-color-surface-variant: #1c1912;
+  --md-sys-color-on-surface-variant: #a3937a;
+  --md-sys-color-surface-container-lowest: #100e0b;
+  --md-sys-color-surface-container-low: #16130e;
+  --md-sys-color-surface-container: #1c1912;
+  --md-sys-color-surface-container-high: #242017;
+  --md-sys-color-surface-container-highest: #2d2819;
+
+  /* Outline */
+  --md-sys-color-outline: #8a7a58;
+  --md-sys-color-outline-variant: #322b1b;
+
+  /* Inverse */
+  --md-sys-color-inverse-surface: #f0e7d0;
+  --md-sys-color-inverse-on-surface: #241c05;
+
+  /* ---------- 语义扩展：金 ---------- */
+  --md-sys-color-accent-strong: #e8c766;
+  --md-sys-color-accent-soft: rgba(201, 162, 39, 0.1);
+  --md-sys-color-accent-border: rgba(201, 162, 39, 0.4);
+  --md-sys-color-title-accent: #e8c766;
+  --md-sys-color-panel-border: rgba(201, 162, 39, 0.16);
+
+  /* 用户气泡：深铜底 + 金边 */
+  --md-sys-color-user-bubble: #2a2110;
+  --md-sys-color-on-user-bubble: #f2e7c8;
+  --md-sys-color-user-bubble-border: #6e5820;
+
+  /* 批注高亮：半透明金 */
+  --md-sys-color-mark: rgba(201, 162, 39, 0.32);
+  --md-sys-color-on-mark: #f7e9be;
+
+  /* 状态色 */
+  --md-sys-color-success: #6fbf8a;
+  --md-sys-color-warning: #d9a441;
+
+  /* 代码 / 选中 */
+  --md-sys-color-code-bg: #171410;
+  --md-sys-color-selection: rgba(201, 162, 39, 0.3);
+
+  /* Elevation */
+  --md-sys-elevation-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --md-sys-elevation-2: 0 6px 20px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --md-sys-elevation-3: 0 10px 30px rgba(0, 0, 0, 0.6), 0 4px 10px rgba(0, 0, 0, 0.45);
+}
+
+/* ============================================================
    Reset & Base
-   ======================================== */
+   ============================================================ */
 *,
 *::before,
 *::after {
@@ -108,20 +232,26 @@ body,
 }
 
 body {
-  font-family: 'Roboto', 'Noto Sans SC', system-ui, sans-serif;
+  font-family: var(--md-sys-font-ui);
   font-size: var(--md-sys-typescale-body-large);
-  line-height: 24px;
-  letter-spacing: 0.5px;
+  line-height: 1.6;
+  letter-spacing: 0;
   color: var(--md-sys-color-on-surface);
   background-color: var(--md-sys-color-surface);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--md-sys-motion-duration-med) var(--md-sys-motion-easing-standard),
+    color var(--md-sys-motion-duration-med) var(--md-sys-motion-easing-standard);
+}
+
+::selection {
+  background: var(--md-sys-color-selection);
 }
 
 /* Scrollbar (WebKit) */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
