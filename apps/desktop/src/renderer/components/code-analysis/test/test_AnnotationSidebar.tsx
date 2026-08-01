@@ -380,6 +380,9 @@ describe('AnnotationSidebar delete', () => {
     const deleteButton = screen.getByRole('button', { name: 'Delete' });
     expect(deleteButton).toHaveTextContent('Delete');
     expect(deleteButton).toHaveAttribute('title', 'Delete');
+    expect(deleteButton.querySelector('.material-symbols-rounded')).toHaveTextContent(
+      'delete_outline',
+    );
   });
 
   it('requires confirmation before deleting an annotation', () => {
