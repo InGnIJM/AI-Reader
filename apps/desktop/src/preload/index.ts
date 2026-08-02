@@ -11,7 +11,11 @@ import { contextBridge, ipcRenderer } from 'electron';
 let IPC_CHANNELS: any;
 try {
   const sharedIpcChannels = require('@ai-reader/shared').IPC_CHANNELS;
-  if (!sharedIpcChannels?.CODE_ANALYSIS_DELETE_ANNOTATION) {
+  if (
+    !sharedIpcChannels?.CODE_ANALYSIS_DELETE_ANNOTATION ||
+    !sharedIpcChannels?.CODE_ANALYSIS_EXPORT_SESSION ||
+    !sharedIpcChannels?.CODE_ANALYSIS_FORK_ACTIVE_SESSION
+  ) {
     throw new Error('Required IPC channels are unavailable');
   }
   IPC_CHANNELS = sharedIpcChannels;
@@ -59,6 +63,7 @@ try {
     CODE_ANALYSIS_REPLY_TO_ANNOTATION: 'codeAnalysis:replyToAnnotation',
     CODE_ANALYSIS_DELETE_ANNOTATION: 'codeAnalysis:deleteAnnotation',
     CODE_ANALYSIS_EXPORT_DOCUMENT: 'codeAnalysis:exportDocument',
+    CODE_ANALYSIS_EXPORT_SESSION: 'codeAnalysis:exportSession',
     CODE_ANALYSIS_IMPORT_DOCUMENT: 'codeAnalysis:importDocument',
     CODE_ANALYSIS_LIST_SESSIONS: 'codeAnalysis:listSessions',
     CODE_ANALYSIS_LIST_RECENT_SESSIONS: 'codeAnalysis:listRecentSessions',
@@ -68,6 +73,7 @@ try {
     CODE_ANALYSIS_RESTORE_SESSION: 'codeAnalysis:restoreSession',
     CODE_ANALYSIS_DELETE_SESSION: 'codeAnalysis:deleteSession',
     CODE_ANALYSIS_FORK_SESSION: 'codeAnalysis:forkSession',
+    CODE_ANALYSIS_FORK_ACTIVE_SESSION: 'codeAnalysis:forkActiveSession',
     CODE_ANALYSIS_RUN_TURN: 'codeAnalysis:runTurn',
     CODE_ANALYSIS_CHECKOUT_TURN: 'codeAnalysis:checkoutTurn',
     CODE_ANALYSIS_LIST_BRANCHES: 'codeAnalysis:listBranches',
@@ -254,6 +260,8 @@ const api = {
         documentId,
         format,
       ),
+    exportSession: (sessionId: string, format: AnalysisExportFormat) =>
+      invoke<AnalysisExportArtifact>(IPC_CHANNELS.CODE_ANALYSIS_EXPORT_SESSION, sessionId, format),
     importDocument: (payload: unknown) =>
       invoke<CodeAnalysisDocumentData>(IPC_CHANNELS.CODE_ANALYSIS_IMPORT_DOCUMENT, payload),
 
@@ -274,6 +282,8 @@ const api = {
       invoke<{ cleanupPending: boolean }>(IPC_CHANNELS.CODE_ANALYSIS_DELETE_SESSION, payload),
     forkSession: (payload: CodeAnalysisForkSessionPayload) =>
       invoke<AnalysisSession>(IPC_CHANNELS.CODE_ANALYSIS_FORK_SESSION, payload),
+    forkActiveSession: (sessionId: string) =>
+      invoke<AnalysisSession>(IPC_CHANNELS.CODE_ANALYSIS_FORK_ACTIVE_SESSION, sessionId),
 
     // ── Turn and branch management ──────────────────────────────────────────
     runTurn: (payload: CodeAnalysisRunTurnPayload) =>

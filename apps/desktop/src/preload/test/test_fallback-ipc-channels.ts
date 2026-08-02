@@ -7,6 +7,7 @@ const state = vi.hoisted(() => ({
         codeAnalysis: {
           deleteAnnotation: (annotationId: string) => Promise<void>;
           forkSession: (payload: { sessionId: string; documentId: string }) => Promise<unknown>;
+          forkActiveSession: (sessionId: string) => Promise<unknown>;
         };
       },
   invoke: vi.fn(),
@@ -60,5 +61,14 @@ describe('preload fallback IPC channels', () => {
       sessionId: 'session-1',
       documentId: 'turn-2',
     });
+  });
+
+  it('routes active session forks through the dedicated fallback channel', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await import('../index');
+
+    await state.api?.codeAnalysis.forkActiveSession('session-1');
+
+    expect(state.invoke).toHaveBeenCalledWith('codeAnalysis:forkActiveSession', 'session-1');
   });
 });
