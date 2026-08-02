@@ -396,6 +396,17 @@ export class AnalysisSessionService {
     return this.getSessionOrThrow(clonedSessionId);
   }
 
+  async forkActiveSession(sessionId: string): Promise<AnalysisSession> {
+    const session = this.getSessionOrThrow(sessionId);
+    if (session.status !== 'active') {
+      throw new SessionServiceError('SESSION_ARCHIVED', 'Cannot fork an archived session');
+    }
+    if (!session.activeDocumentId) {
+      throw new SessionServiceError('NO_ACTIVE_DOCUMENT', 'Session has no active document');
+    }
+    return this.forkAsIndependentSession({ sessionId, documentId: session.activeDocumentId });
+  }
+
   async deletePermanently(
     sessionId: string,
     confirmed: boolean,

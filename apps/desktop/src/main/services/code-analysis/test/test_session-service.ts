@@ -379,6 +379,40 @@ describe('AnalysisSessionService', () => {
   // ── deletePermanently ─────────────────────────────────────────────────────
 
 +  describe('forkAsIndependentSession', () => {
+    it('forks a session from its active document', async () => {
+      const { sessionId, branchId, documentId: rootDocumentId } = insertSession(db);
+      const activeDocumentId = insertDocument(db, sessionId, branchId, {
+        parentDocumentId: rootDocumentId,
+        goal: 'Active turn',
+      });
+      db.db
+        .prepare(
+          'UPDATE analysis_sessions SET active_document_id = ?, updated_at = ? WHERE id = ?',
+        )
+        .run(activeDocumentId, new Date().toISOString(), sessionId);
+
+      const forked = await service.forkActiveSession(sessionId);
+      const detail = await service.getDetail(forked.id);
+
+      expect(detail?.turns.map((turn) => turn.goal)).toEqual(['Test goal', 'Active turn']);
+      expect(forked.activeDocumentId).toBe(detail?.turns[1]?.id);
+    });
+
+    it('rejects a session fork without an active document', async () => {
+      const { sessionId } = insertSession(db);
+      db.db
+        .prepare('UPDATE analysis_sessions SET active_document_id = NULL WHERE id = ?')
+        .run(sessionId);
+
+      await expect(service.forkActiveSession(sessionId)).rejects.toThrow(/NO_ACTIVE_DOCUMENT/);
+    });
+
+    it('rejects a session fork from an archived session', async () => {
+      const { sessionId } = insertSession(db, { status: 'archived' });
+
+      await expect(service.forkActiveSession(sessionId)).rejects.toThrow(/SESSION_ARCHIVED/);
+    });
+
     it('copies the selected turn path and its related records into an independent session', async () => {
       const { sessionId, branchId, documentId: rootDocumentId } = insertSession(db);
       const secondDocumentId = insertDocument(db, sessionId, branchId, {
