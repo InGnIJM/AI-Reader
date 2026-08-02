@@ -181,6 +181,7 @@ describe('code analysis database migration', () => {
     sqlite: Database.Database,
     overrides: {
       exec?: (sql: string) => unknown;
+      prepare?: Database.Database['prepare'];
       pragma?: (source: string, options?: { simple?: boolean }) => unknown;
     },
   ): Database.Database {
@@ -193,9 +194,26 @@ describe('code analysis database migration', () => {
         return sqlite.inTransaction;
       },
       exec: overrides.exec ?? sqlite.exec.bind(sqlite),
-      prepare: sqlite.prepare.bind(sqlite),
+      prepare: overrides.prepare ?? sqlite.prepare.bind(sqlite),
       pragma: overrides.pragma ?? runPragma,
     } as unknown as Database.Database;
+  }
+
+  function migrateOnlyToV1(sqlite: Database.Database): void {
+    let beforeCommitCalls = 0;
+    expect(() =>
+      migrateCodeAnalysisSchema(sqlite, {
+        beforeCommit: () => {
+          beforeCommitCalls += 1;
+          if (beforeCommitCalls === 2) throw new Error('stop after v1 migration');
+        },
+      }),
+    ).toThrow('stop after v1 migration');
+    expect(
+      sqlite
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '1' });
   }
 
   function seedSessionGraph(sqlite: Database.Database): void {
@@ -238,6 +256,166 @@ describe('code analysis database migration', () => {
         )
         .run(`branch-${suffix}`, `document-${suffix}`, `session-${suffix}`);
     }
+  }
+
+  function installLegacyBranchUpdateTrigger(
+    sqlite: Database.Database,
+    includeDummyGuards = false,
+  ): void {
+    sqlite.exec(`
+      DROP TRIGGER trg_analysis_branches_validate_update;
+      CREATE TRIGGER trg_analysis_branches_validate_update
+      BEFORE UPDATE ON analysis_branches
+      BEGIN
+        ${
+          includeDummyGuards
+            ? `
+              SELECT CASE
+                WHEN NEW.parent_branch_id IS NOT OLD.parent_branch_id
+                  OR NEW.forked_from_document_id IS NOT OLD.forked_from_document_id
+                  OR NEW.head_document_id IS NOT OLD.head_document_id
+                  OR NEW.session_id IS NOT OLD.session_id
+                THEN NULL
+              END;
+            `
+            : ''
+        }
+        SELECT CASE
+          WHEN NEW.parent_branch_id IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM analysis_branches
+              WHERE id = NEW.parent_branch_id AND session_id = NEW.session_id
+            )
+          THEN RAISE(ABORT, 'analysis branch parent session mismatch')
+        END;
+        SELECT CASE
+          WHEN NEW.forked_from_document_id IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM analysis_documents
+              WHERE id = NEW.forked_from_document_id AND session_id = NEW.session_id
+            )
+          THEN RAISE(ABORT, 'analysis branch fork document session mismatch')
+        END;
+        SELECT CASE
+          WHEN NEW.head_document_id IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM analysis_documents
+              WHERE id = NEW.head_document_id AND branch_id = NEW.id
+            )
+          THEN RAISE(ABORT, 'analysis branch head branch mismatch')
+        END;
+        SELECT CASE
+          WHEN EXISTS (
+            SELECT 1 FROM analysis_documents
+            WHERE branch_id = NEW.id AND session_id IS NOT NEW.session_id
+          )
+          THEN RAISE(ABORT, 'analysis branch turn session mismatch')
+        END;
+        SELECT CASE
+          WHEN EXISTS (
+            SELECT 1 FROM analysis_sessions
+            WHERE active_branch_id = OLD.id AND id IS NOT NEW.session_id
+          )
+          THEN RAISE(ABORT, 'analysis session active branch reverse mismatch')
+        END;
+        SELECT CASE
+          WHEN EXISTS (
+            SELECT 1 FROM analysis_branches
+            WHERE parent_branch_id = OLD.id AND session_id IS NOT NEW.session_id
+          )
+          THEN RAISE(ABORT, 'analysis branch child branch session mismatch')
+        END;
+      END;
+    `);
+  }
+
+  function setSchemaVersion(sqlite: Database.Database, version: string): void {
+    sqlite
+      .prepare('UPDATE app_settings SET value = ? WHERE key = ?')
+      .run(version, 'code_analysis_session_schema');
+  }
+
+  function seedForkedSessionGraph(sqlite: Database.Database): void {
+    seedSessionGraph(sqlite);
+    sqlite.exec(`
+      INSERT INTO analysis_documents
+        (id, session_id, branch_id, parent_document_id, goal,
+         content_markdown, status, tool_call_count, created_at, updated_at)
+      VALUES
+        ('document-main-child', 'session-one', 'branch-one', 'document-one', 'Main child',
+         '', 'completed', 0, '2026-07-29', '2026-07-29');
+      UPDATE analysis_branches
+      SET head_document_id = 'document-main-child'
+      WHERE id = 'branch-one';
+      INSERT INTO analysis_branches
+        (id, session_id, name, parent_branch_id, forked_from_document_id,
+         head_document_id, created_at, updated_at)
+      VALUES
+        ('branch-fork', 'session-one', 'Fork', 'branch-one', 'document-one',
+         NULL, '2026-07-29', '2026-07-29');
+      INSERT INTO analysis_documents
+        (id, session_id, branch_id, parent_document_id, goal,
+         content_markdown, status, tool_call_count, created_at, updated_at)
+      VALUES
+        ('document-fork-child', 'session-one', 'branch-fork', 'document-one', 'Fork child',
+         '', 'completed', 0, '2026-07-29', '2026-07-29');
+      UPDATE analysis_branches
+      SET head_document_id = 'document-fork-child'
+      WHERE id = 'branch-fork';
+    `);
+  }
+
+  function getBranchUpdateTriggerSql(sqlite: Database.Database): string {
+    return (
+      sqlite
+        .prepare(
+          `SELECT sql FROM sqlite_master
+           WHERE type = 'trigger' AND name = 'trg_analysis_branches_validate_update'`,
+        )
+        .get() as { sql: string }
+    ).sql;
+  }
+
+  function expectV3BranchUpdateGuards(sqlite: Database.Database): void {
+    const triggerSql = getBranchUpdateTriggerSql(sqlite)
+      .toLowerCase()
+      .replace(/\s+/g, ' ');
+    for (const fragment of [
+      'new.parent_branch_id is not old.parent_branch_id',
+      'new.forked_from_document_id is not old.forked_from_document_id',
+      'new.head_document_id is not old.head_document_id',
+      'new.session_id is not old.session_id',
+    ]) {
+      expect(triggerSql).toContain(fragment);
+    }
+  }
+
+  function snapshotRowCounts(
+    sqlite: Database.Database,
+    tables: readonly string[],
+  ): Record<string, number> {
+    return Object.fromEntries(
+      tables.map((table) => [
+        table,
+        (
+          sqlite.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as {
+            count: number;
+          }
+        ).count,
+      ]),
+    );
+  }
+
+  function snapshotRows(
+    sqlite: Database.Database,
+    tables: readonly string[],
+  ): Record<string, unknown[]> {
+    return Object.fromEntries(
+      tables.map((table) => [
+        table,
+        sqlite.prepare(`SELECT * FROM ${table} ORDER BY id`).all(),
+      ]),
+    );
   }
 
   it('migrates each legacy document into its own session and main branch without changing IDs', () => {
@@ -328,7 +506,7 @@ describe('code analysis database migration', () => {
            WHERE key = ?`,
         )
         .get('code_analysis_session_schema'),
-    ).toEqual({ value: '2' });
+    ).toEqual({ value: '3' });
     expect(
       sqlite
         .prepare(
@@ -459,39 +637,333 @@ describe('code analysis database migration', () => {
 
   it('deletes a legacy session with a forked branch', () => {
     const sqlite = openMigrated(':memory:');
-    seedSessionGraph(sqlite);
-    sqlite.exec(`
-      INSERT INTO analysis_documents
-        (id, session_id, branch_id, parent_document_id, goal,
-         content_markdown, status, tool_call_count, created_at, updated_at)
-      VALUES
-        ('document-main-child', 'session-one', 'branch-one', 'document-one', 'Main child',
-         '', 'completed', 0, '2026-07-29', '2026-07-29');
-      UPDATE analysis_branches
-      SET head_document_id = 'document-main-child'
-      WHERE id = 'branch-one';
-      INSERT INTO analysis_branches
-        (id, session_id, name, parent_branch_id, forked_from_document_id,
-         head_document_id, created_at, updated_at)
-      VALUES
-        ('branch-fork', 'session-one', 'Fork', 'branch-one', 'document-one',
-         NULL, '2026-07-29', '2026-07-29');
-      INSERT INTO analysis_documents
-        (id, session_id, branch_id, parent_document_id, goal,
-         content_markdown, status, tool_call_count, created_at, updated_at)
-      VALUES
-        ('document-fork-child', 'session-one', 'branch-fork', 'document-one', 'Fork child',
-         '', 'completed', 0, '2026-07-29', '2026-07-29');
-      UPDATE analysis_branches
-      SET head_document_id = 'document-fork-child'
-      WHERE id = 'branch-fork';
-    `);
+    seedForkedSessionGraph(sqlite);
 
     expect(() =>
       sqlite.prepare('DELETE FROM analysis_sessions WHERE id = ?').run('session-one'),
     ).not.toThrow();
     expect(listIds(sqlite, 'analysis_sessions')).toEqual(['session-two']);
     expect(sqlite.pragma('foreign_key_check')).toEqual([]);
+  });
+
+  it('upgrades a v2 database with a legacy branch trigger to v3', () => {
+    const sqlite = openMigrated(createPath());
+    setSchemaVersion(sqlite, '2');
+    installLegacyBranchUpdateTrigger(sqlite);
+
+    migrateCodeAnalysisSchema(sqlite);
+
+    expect(
+      sqlite
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '3' });
+    expectV3BranchUpdateGuards(sqlite);
+  });
+
+  it('rejects a stale legacy trigger in a database already marked v3', () => {
+    const sqlite = openMigrated(createPath());
+    seedForkedSessionGraph(sqlite);
+    setSchemaVersion(sqlite, '3');
+    installLegacyBranchUpdateTrigger(sqlite);
+    const legacyTriggerSql = getBranchUpdateTriggerSql(sqlite);
+    const userTables = [
+      'code_projects',
+      'analysis_sessions',
+      'analysis_branches',
+      'analysis_documents',
+      'analysis_annotations',
+      'analysis_discussion_messages',
+      'analysis_tool_traces',
+      'analysis_file_cleanup_queue',
+    ];
+    const userRows = snapshotRows(sqlite, userTables);
+    const rowCounts = snapshotRowCounts(sqlite, userTables);
+    const schemaObjects = sqlite
+      .prepare(
+        `SELECT type, name, tbl_name AS tableName, sql
+         FROM sqlite_master
+         WHERE name NOT LIKE 'sqlite_%'
+         ORDER BY type, name`,
+      )
+      .all();
+
+    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(
+      /invalid v3 schema.*stale trigger/i,
+    );
+
+    expect(
+      sqlite
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '3' });
+    expect(getBranchUpdateTriggerSql(sqlite)).toBe(legacyTriggerSql);
+    expect(snapshotRows(sqlite, userTables)).toEqual(userRows);
+    expect(snapshotRowCounts(sqlite, userTables)).toEqual(rowCounts);
+    expect(
+      sqlite
+        .prepare(
+          `SELECT type, name, tbl_name AS tableName, sql
+           FROM sqlite_master
+           WHERE name NOT LIKE 'sqlite_%'
+           ORDER BY type, name`,
+        )
+        .all(),
+    ).toEqual(schemaObjects);
+    expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it('rejects a legacy trigger with dummy OLD and NEW expressions in a database marked v3', () => {
+    const sqlite = openMigrated(createPath());
+    seedForkedSessionGraph(sqlite);
+    setSchemaVersion(sqlite, '3');
+    installLegacyBranchUpdateTrigger(sqlite, true);
+    const legacyTriggerSql = getBranchUpdateTriggerSql(sqlite);
+    const userTables = [
+      'code_projects',
+      'analysis_sessions',
+      'analysis_branches',
+      'analysis_documents',
+      'analysis_annotations',
+      'analysis_discussion_messages',
+      'analysis_tool_traces',
+      'analysis_file_cleanup_queue',
+    ];
+    const userRows = snapshotRows(sqlite, userTables);
+    const rowCounts = snapshotRowCounts(sqlite, userTables);
+    const schemaObjects = sqlite
+      .prepare(
+        `SELECT type, name, tbl_name AS tableName, sql
+         FROM sqlite_master
+         WHERE name NOT LIKE 'sqlite_%'
+         ORDER BY type, name`,
+      )
+      .all();
+
+    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(
+      'Invalid v3 schema: stale trigger trg_analysis_branches_validate_update',
+    );
+
+    expect(
+      sqlite
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '3' });
+    expect(getBranchUpdateTriggerSql(sqlite)).toBe(legacyTriggerSql);
+    expect(snapshotRows(sqlite, userTables)).toEqual(userRows);
+    expect(snapshotRowCounts(sqlite, userTables)).toEqual(rowCounts);
+    expect(
+      sqlite
+        .prepare(
+          `SELECT type, name, tbl_name AS tableName, sql
+           FROM sqlite_master
+           WHERE name NOT LIKE 'sqlite_%'
+           ORDER BY type, name`,
+        )
+        .all(),
+    ).toEqual(schemaObjects);
+    expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it('deletes a forked legacy session after the v3 trigger upgrade', () => {
+    const sqlite = openMigrated(createPath());
+    seedForkedSessionGraph(sqlite);
+    setSchemaVersion(sqlite, '2');
+    installLegacyBranchUpdateTrigger(sqlite);
+
+    expect(() =>
+      sqlite.prepare('DELETE FROM analysis_sessions WHERE id = ?').run('session-one'),
+    ).toThrow(/fork document/i);
+    expect(listIds(sqlite, 'analysis_sessions')).toEqual(['session-one', 'session-two']);
+    expect(listIds(sqlite, 'analysis_branches')).toEqual([
+      'branch-fork',
+      'branch-one',
+      'branch-two',
+    ]);
+    expect(listIds(sqlite, 'analysis_documents')).toEqual([
+      'document-fork-child',
+      'document-main-child',
+      'document-one',
+      'document-two',
+    ]);
+    expect(sqlite.pragma('foreign_key_check')).toEqual([]);
+
+    migrateCodeAnalysisSchema(sqlite);
+
+    expect(
+      sqlite
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '3' });
+    expect(() =>
+      sqlite.prepare('DELETE FROM analysis_sessions WHERE id = ?').run('session-one'),
+    ).not.toThrow();
+    expect(listIds(sqlite, 'analysis_sessions')).toEqual(['session-two']);
+    expect(sqlite.pragma('foreign_key_check')).toEqual([]);
+  });
+
+  it('keeps cross-session fork-document ownership checks after the v3 trigger upgrade', () => {
+    const sqlite = openMigrated(createPath());
+    seedForkedSessionGraph(sqlite);
+    setSchemaVersion(sqlite, '2');
+    installLegacyBranchUpdateTrigger(sqlite);
+
+    migrateCodeAnalysisSchema(sqlite);
+
+    expect(
+      sqlite
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '3' });
+    expect(() =>
+      sqlite
+        .prepare('UPDATE analysis_branches SET forked_from_document_id = ? WHERE id = ?')
+        .run('document-two', 'branch-fork'),
+    ).toThrow(/fork document/i);
+    expect(sqlite.pragma('foreign_key_check')).toEqual([]);
+  });
+
+  it('is idempotent after upgrading a legacy v2 branch trigger to v3', () => {
+    const sqlite = openMigrated(createPath());
+    seedForkedSessionGraph(sqlite);
+    setSchemaVersion(sqlite, '2');
+    installLegacyBranchUpdateTrigger(sqlite);
+
+    migrateCodeAnalysisSchema(sqlite);
+    const firstTriggerSql = getBranchUpdateTriggerSql(sqlite);
+    const firstCounts = snapshotRowCounts(sqlite, [
+      'analysis_sessions',
+      'analysis_branches',
+      'analysis_documents',
+      'analysis_annotations',
+      'analysis_discussion_messages',
+      'analysis_tool_traces',
+      'analysis_file_cleanup_queue',
+    ]);
+
+    migrateCodeAnalysisSchema(sqlite);
+
+    expect(
+      sqlite
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '3' });
+    expect(getBranchUpdateTriggerSql(sqlite)).toBe(firstTriggerSql);
+    expect(snapshotRowCounts(sqlite, Object.keys(firstCounts))).toEqual(firstCounts);
+    expect(sqlite.pragma('foreign_key_check')).toEqual([]);
+    expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it('rolls back a failed v3 trigger upgrade without changing its legacy v2 state', () => {
+    const sqlite = openMigrated(createPath());
+    seedForkedSessionGraph(sqlite);
+    setSchemaVersion(sqlite, '2');
+    installLegacyBranchUpdateTrigger(sqlite);
+    const legacyTriggerSql = getBranchUpdateTriggerSql(sqlite);
+    const rowCounts = snapshotRowCounts(sqlite, [
+      'analysis_sessions',
+      'analysis_branches',
+      'analysis_documents',
+      'analysis_annotations',
+      'analysis_discussion_messages',
+      'analysis_tool_traces',
+      'analysis_file_cleanup_queue',
+    ]);
+
+    expect(() =>
+      migrateCodeAnalysisSchema(sqlite, {
+        beforeCommit: () => {
+          throw new Error('forced v3 failure');
+        },
+      }),
+    ).toThrow('forced v3 failure');
+
+    expect(
+      sqlite
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '2' });
+    expect(getBranchUpdateTriggerSql(sqlite)).toBe(legacyTriggerSql);
+    expect(snapshotRowCounts(sqlite, Object.keys(rowCounts))).toEqual(rowCounts);
+    expect(sqlite.pragma('foreign_key_check')).toEqual([]);
+    expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it('rolls back a v3 trigger upgrade when its foreign key check finds corruption', () => {
+    const sqlite = openMigrated(createPath());
+    seedForkedSessionGraph(sqlite);
+    setSchemaVersion(sqlite, '2');
+    installLegacyBranchUpdateTrigger(sqlite);
+
+    expect(() =>
+      migrateCodeAnalysisSchema(sqlite, {
+        beforeCommit: () => {
+          sqlite
+            .prepare('UPDATE analysis_sessions SET project_id = ? WHERE id = ?')
+            .run('missing-project', 'session-one');
+        },
+      }),
+    ).toThrow(/foreign key check/i);
+
+    expect(
+      sqlite
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '2' });
+    expect(getBranchUpdateTriggerSql(sqlite)).toMatch(/fork document session mismatch/i);
+    expect(sqlite.pragma('foreign_key_check')).toEqual([]);
+    expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it('stops a v3 trigger upgrade before destructive work when foreign keys stay enabled', () => {
+    const realSqlite = openMigrated(createPath());
+    setSchemaVersion(realSqlite, '2');
+    installLegacyBranchUpdateTrigger(realSqlite);
+    const runPragma = realSqlite.pragma.bind(realSqlite) as Database.Database['pragma'];
+    const sqlite = wrapDatabase(realSqlite, {
+      pragma: ((statement: string, options?: unknown) => {
+        if (statement === 'foreign_keys = OFF') return undefined;
+        return runPragma(statement, options as never);
+      }) as Database.Database['pragma'],
+    });
+
+    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(
+      'Failed to disable SQLite foreign key enforcement',
+    );
+
+    expect(
+      realSqlite
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '2' });
+    expect(getBranchUpdateTriggerSql(realSqlite)).toMatch(/fork document session mismatch/i);
+    expect(realSqlite.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it('rethrows injected SQLite prepare failures without relabeling them as schema errors', () => {
+    const realSqlite = openMigrated(createPath());
+    const prepare = realSqlite.prepare.bind(realSqlite);
+    const injectedError = new Error('injected SQLite prepare failure');
+    const sqlite = wrapDatabase(realSqlite, {
+      prepare: ((source: string) => {
+        if (source.includes('SELECT name FROM pragma_table_info')) {
+          throw injectedError;
+        }
+        return prepare(source);
+      }) as Database.Database['prepare'],
+    });
+
+    let thrown: unknown;
+    try {
+      migrateCodeAnalysisSchema(sqlite);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBe(injectedError);
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).not.toMatch(/^Invalid v3 schema:/);
+    expect(realSqlite.pragma('foreign_keys', { simple: true })).toBe(1);
   });
 
   it('rejects self-referencing and indirect turn parent cycles', () => {
@@ -647,7 +1119,7 @@ describe('code analysis database migration', () => {
     expect(parentBranchDb.pragma('foreign_key_check')).toEqual([]);
   });
 
-  it('is idempotent when the same v1 database is closed and reopened', () => {
+  it('is idempotent after migrating the same v1 database to v3', () => {
     const dbPath = createPath();
     createLegacyDatabase(dbPath).close();
     const first = openMigrated(dbPath);
@@ -667,13 +1139,13 @@ describe('code analysis database migration', () => {
       reopened
         .prepare('SELECT value FROM app_settings WHERE key = ?')
         .get('code_analysis_session_schema'),
-    ).toEqual({ value: '2' });
+    ).toEqual({ value: '3' });
     expect(reopened.pragma('foreign_key_check')).toEqual([]);
     expect(reopened.pragma('foreign_keys', { simple: true })).toBe(1);
   });
 
   it('rejects future schema versions without mutating the database', () => {
-    const sqlite = createLegacyDatabase(createPath(), '3');
+    const sqlite = createLegacyDatabase(createPath(), '4');
     const schemaBefore = sqlite
       .prepare(
         `SELECT type, name, sql
@@ -684,7 +1156,7 @@ describe('code analysis database migration', () => {
       .all();
     const pragma = vi.spyOn(sqlite, 'pragma');
 
-    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(/newer schema version.*3/i);
+    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(/newer schema version.*4/i);
 
     expect(
       sqlite
@@ -704,7 +1176,7 @@ describe('code analysis database migration', () => {
       sqlite
         .prepare('SELECT value FROM app_settings WHERE key = ?')
         .get('code_analysis_session_schema'),
-    ).toEqual({ value: '3' });
+    ).toEqual({ value: '4' });
   });
 
   it('rejects an unsupported non-numeric schema marker', () => {
@@ -772,16 +1244,16 @@ describe('code analysis database migration', () => {
         END
       `,
     },
-  ])('rejects an incomplete v1 schema with a missing or stale $name', ({ damage }) => {
+  ])('rejects an incomplete v3 schema with a missing or stale $name', ({ damage }) => {
     const sqlite = openMigrated(':memory:');
     sqlite.exec(damage);
 
-    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(/invalid v[12] schema/i);
+    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(/invalid v3 schema/i);
     expect(
       sqlite
         .prepare('SELECT value FROM app_settings WHERE key = ?')
         .get('code_analysis_session_schema'),
-    ).toEqual({ value: '2' });
+    ).toEqual({ value: '3' });
     expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
   });
 
@@ -1087,7 +1559,7 @@ describe('code analysis database migration', () => {
     sqlite.exec('ROLLBACK');
   });
 
-  it('migrates v1 schema to v2 by removing project_id and enforcing NOT NULL', () => {
+  it('migrates v1 schema to v3 by removing project_id and enforcing NOT NULL', () => {
     const dbPath = createPath();
     createLegacyDatabase(dbPath).close();
 
@@ -1097,7 +1569,7 @@ describe('code analysis database migration', () => {
       sqlite
         .prepare('SELECT value FROM app_settings WHERE key = ?')
         .get('code_analysis_session_schema'),
-    ).toEqual({ value: '2' });
+    ).toEqual({ value: '3' });
     expect(
       sqlite
         .prepare(
@@ -1125,7 +1597,7 @@ describe('code analysis database migration', () => {
     expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
   });
 
-  it('migrates a fresh database directly to v2', () => {
+  it('migrates a fresh database directly to v3', () => {
     const sqlite = track(new Database(':memory:'));
     sqlite.pragma('foreign_keys = ON');
     sqlite.exec(`
@@ -1145,7 +1617,7 @@ describe('code analysis database migration', () => {
       sqlite
         .prepare('SELECT value FROM app_settings WHERE key = ?')
         .get('code_analysis_session_schema'),
-    ).toEqual({ value: '2' });
+    ).toEqual({ value: '3' });
     expect(
       sqlite
         .prepare(
@@ -1170,7 +1642,7 @@ describe('code analysis database migration', () => {
     expect(sqlite.pragma('foreign_key_check')).toEqual([]);
   });
 
-  it('is idempotent when v2 migration runs twice', () => {
+  it('is idempotent when v3 migration runs twice', () => {
     const dbPath = createPath();
     createLegacyDatabase(dbPath).close();
 
@@ -1189,7 +1661,7 @@ describe('code analysis database migration', () => {
       reopened
         .prepare('SELECT value FROM app_settings WHERE key = ?')
         .get('code_analysis_session_schema'),
-    ).toEqual({ value: '2' });
+    ).toEqual({ value: '3' });
     expect(reopened.pragma('foreign_key_check')).toEqual([]);
     expect(reopened.pragma('foreign_keys', { simple: true })).toBe(1);
   });
@@ -1218,7 +1690,93 @@ describe('code analysis database migration', () => {
     expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
   });
 
-  it('validates v2 schema rejects missing NOT NULL constraint', () => {
+  it('stops a v2 upgrade before rebuilding documents when foreign keys stay enabled', () => {
+    const realSqlite = createLegacyDatabase(createPath());
+    migrateOnlyToV1(realSqlite);
+    const runPragma = realSqlite.pragma.bind(realSqlite) as Database.Database['pragma'];
+    const sqlite = wrapDatabase(realSqlite, {
+      pragma: ((statement: string, options?: unknown) => {
+        if (statement === 'foreign_keys = OFF') return undefined;
+        return runPragma(statement, options as never);
+      }) as Database.Database['pragma'],
+    });
+
+    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(
+      'Failed to disable SQLite foreign key enforcement',
+    );
+    expect(
+      realSqlite
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '1' });
+    expect(realSqlite.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it('rolls back a v2 upgrade when its foreign key check finds corruption', () => {
+    const sqlite = createLegacyDatabase(createPath());
+    migrateOnlyToV1(sqlite);
+
+    expect(() =>
+      migrateCodeAnalysisSchema(sqlite, {
+        beforeCommit: () => {
+          sqlite
+            .prepare('UPDATE analysis_tool_traces SET analysis_document_id = ? WHERE id = ?')
+            .run('missing-document', 'trace-old');
+        },
+      }),
+    ).toThrow(/foreign key check/i);
+    expect(
+      sqlite
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '1' });
+    expect(sqlite.pragma('foreign_key_check')).toEqual([]);
+    expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it('rejects stale v1 trigger definitions before starting the v2 upgrade', () => {
+    const sqlite = createLegacyDatabase(createPath());
+    migrateOnlyToV1(sqlite);
+    sqlite.exec(`
+      DROP TRIGGER trg_analysis_documents_validate_update;
+      CREATE TRIGGER trg_analysis_documents_validate_update
+      BEFORE UPDATE ON analysis_documents
+      BEGIN
+        SELECT 1;
+      END
+    `);
+
+    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(
+      /invalid v1 schema.*stale trigger/i,
+    );
+    expect(
+      sqlite
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '1' });
+    expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it('rejects v2 markers with the removed document project column and index', () => {
+    const sqlite = openMigrated(createPath());
+    setSchemaVersion(sqlite, '2');
+    sqlite.exec(`
+      ALTER TABLE analysis_documents ADD COLUMN project_id TEXT;
+      CREATE INDEX idx_analysis_documents_project ON analysis_documents(project_id);
+    `);
+
+    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(
+      /project_id should not have|project should not exist/i,
+    );
+    expect(
+      sqlite
+        .prepare('SELECT value FROM app_settings WHERE key = ?')
+        .get('code_analysis_session_schema'),
+    ).toEqual({ value: '2' });
+    expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it('validates v3 schema rejects missing NOT NULL constraint', () => {
     const dbPath = createPath();
     createLegacyDatabase(dbPath).close();
     const sqlite = openMigrated(dbPath);
@@ -1256,7 +1814,7 @@ describe('code analysis database migration', () => {
     );
   });
 
-  it('validates v2 schema rejects stale trigger definitions', () => {
+  it('validates v3 schema rejects stale trigger definitions', () => {
     const dbPath = createPath();
     createLegacyDatabase(dbPath).close();
     const sqlite = openMigrated(dbPath);
@@ -1270,7 +1828,7 @@ describe('code analysis database migration', () => {
       END
     `);
 
-    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(/invalid v2 schema/i);
+    expect(() => migrateCodeAnalysisSchema(sqlite)).toThrow(/invalid v3 schema/i);
   });
 
   function hasSchemaObject(

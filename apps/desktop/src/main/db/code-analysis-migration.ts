@@ -3,7 +3,7 @@ import { parse, resolve } from 'path';
 import type Database from 'better-sqlite3';
 
 const SESSION_SCHEMA_KEY = 'code_analysis_session_schema';
-const SESSION_SCHEMA_VERSION = '2';
+const SESSION_SCHEMA_VERSION = '3';
 const PRESERVED_TABLES = [
   'analysis_documents',
   'analysis_annotations',
@@ -278,18 +278,19 @@ export function migrateCodeAnalysisSchema(
     schemaVersion !== undefined &&
     schemaVersion !== '0' &&
     schemaVersion !== '1' &&
-    schemaVersion !== '2'
+    schemaVersion !== '2' &&
+    schemaVersion !== '3'
   ) {
     const numericVersion = Number(schemaVersion);
-    if (Number.isInteger(numericVersion) && numericVersion > 2) {
+    if (Number.isInteger(numericVersion) && numericVersion > 3) {
       throw new Error(
-        `Database uses newer schema version ${schemaVersion}; supported version is 2`,
+        `Database uses newer schema version ${schemaVersion}; supported version is 3`,
       );
     }
     throw new Error(`Unsupported code analysis schema version: ${schemaVersion}`);
   }
-  if (schemaVersion === '2') {
-    validateV2Schema(sqlite);
+  if (schemaVersion === '3') {
+    validateV3Schema(sqlite);
     restoreForeignKeys(sqlite);
     return;
   }
@@ -298,7 +299,11 @@ export function migrateCodeAnalysisSchema(
     migrateToV1(sqlite, options);
   }
 
-  migrateToV2(sqlite, options);
+  if (schemaVersion !== '2') {
+    migrateToV2(sqlite, options);
+  }
+
+  migrateToV3(sqlite, options);
 }
 
 function migrateToV1(
@@ -361,7 +366,7 @@ function migrateToV2(
     dropExistingTriggers(sqlite);
     rebuildDocumentsForV2(sqlite);
     createV2Indexes(sqlite);
-    createV2Triggers(sqlite);
+    createCurrentOwnershipAndCycleTriggers(sqlite);
 
     options.beforeCommit?.();
     const foreignKeyErrors = sqlite.pragma('foreign_key_check') as unknown[];
@@ -384,6 +389,44 @@ function migrateToV2(
   }
 }
 
+function migrateToV3(
+  sqlite: Database.Database,
+  options: CodeAnalysisMigrationOptions,
+): void {
+  validateV2Schema(sqlite);
+
+  const preservedCounts = snapshotPreservedCounts(sqlite);
+  try {
+    sqlite.pragma('foreign_keys = OFF');
+    if (sqlite.pragma('foreign_keys', { simple: true }) !== 0) {
+      throw new Error('Failed to disable SQLite foreign key enforcement');
+    }
+    sqlite.exec('BEGIN IMMEDIATE');
+
+    dropExistingTriggers(sqlite);
+    createCurrentOwnershipAndCycleTriggers(sqlite);
+
+    options.beforeCommit?.();
+    const foreignKeyErrors = sqlite.pragma('foreign_key_check') as unknown[];
+    if (foreignKeyErrors.length > 0) {
+      throw new Error(
+        `Code analysis migration failed foreign key check: ${JSON.stringify(
+          foreignKeyErrors,
+        )}`,
+      );
+    }
+    assertPreservedCounts(sqlite, preservedCounts);
+
+    writeSchemaVersion(sqlite, SESSION_SCHEMA_VERSION);
+    sqlite.exec('COMMIT');
+  } catch (error) {
+    if (sqlite.inTransaction) sqlite.exec('ROLLBACK');
+    throw error;
+  } finally {
+    restoreForeignKeys(sqlite);
+  }
+}
+
 function dropExistingTriggers(sqlite: Database.Database): void {
   sqlite.exec(`
     DROP TRIGGER IF EXISTS trg_analysis_sessions_validate_insert;
@@ -396,14 +439,6 @@ function dropExistingTriggers(sqlite: Database.Database): void {
 }
 
 function rebuildDocumentsForV2(sqlite: Database.Database): void {
-  if (
-    !hasColumn(sqlite, 'analysis_documents', 'project_id') &&
-    isColumnNotNull(sqlite, 'analysis_documents', 'session_id') &&
-    isColumnNotNull(sqlite, 'analysis_documents', 'branch_id')
-  ) {
-    return;
-  }
-
   sqlite.exec(`
     CREATE TABLE analysis_documents_v2 (
       id TEXT PRIMARY KEY,
@@ -455,7 +490,7 @@ function createV2Indexes(sqlite: Database.Database): void {
   `);
 }
 
-function createV2Triggers(sqlite: Database.Database): void {
+function createCurrentOwnershipAndCycleTriggers(sqlite: Database.Database): void {
   sqlite.exec(`
     DROP TRIGGER IF EXISTS trg_analysis_sessions_validate_insert;
     DROP TRIGGER IF EXISTS trg_analysis_sessions_validate_update;
@@ -744,6 +779,36 @@ function validateV2Schema(sqlite: Database.Database): void {
   }
 }
 
+function validateV3Schema(sqlite: Database.Database): void {
+  try {
+    validateV2Schema(sqlite);
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Invalid v2 schema:')) {
+      throw new Error(error.message.replace('Invalid v2 schema:', 'Invalid v3 schema:'));
+    }
+    throw error;
+  }
+
+  const row = sqlite
+    .prepare(
+      `SELECT sql
+       FROM sqlite_master
+       WHERE type = 'trigger' AND name = ?`,
+    )
+    .get('trg_analysis_branches_validate_update') as { sql: string | null } | undefined;
+  const normalizedSql = row?.sql?.toLowerCase().replace(/\s+/g, ' ');
+  const requiredFragments = [
+    '(new.parent_branch_id is not old.parent_branch_id or new.session_id is not old.session_id) and new.parent_branch_id is not null',
+    '(new.forked_from_document_id is not old.forked_from_document_id or new.session_id is not old.session_id) and new.forked_from_document_id is not null',
+    'new.head_document_id is not old.head_document_id and new.head_document_id is not null',
+  ];
+  if (!normalizedSql || requiredFragments.some((fragment) => !normalizedSql.includes(fragment))) {
+    throw new Error(
+      'Invalid v3 schema: stale trigger trg_analysis_branches_validate_update',
+    );
+  }
+}
+
 function isColumnNotNull(sqlite: Database.Database, table: string, column: string): boolean {
   const info = sqlite
     .prepare(
@@ -839,7 +904,7 @@ function readSchemaVersion(sqlite: Database.Database): string | undefined {
   )?.value;
 }
 
-function writeSchemaVersion(sqlite: Database.Database, version?: string): void {
+function writeSchemaVersion(sqlite: Database.Database, version: string): void {
   sqlite
     .prepare(
       `INSERT INTO app_settings (key, value, updated_at)
@@ -848,7 +913,7 @@ function writeSchemaVersion(sqlite: Database.Database, version?: string): void {
          value = excluded.value,
          updated_at = excluded.updated_at`,
     )
-    .run(SESSION_SCHEMA_KEY, version ?? SESSION_SCHEMA_VERSION, new Date().toISOString());
+    .run(SESSION_SCHEMA_KEY, version, new Date().toISOString());
 }
 
 function restoreForeignKeys(sqlite: Database.Database): void {
