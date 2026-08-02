@@ -48,6 +48,9 @@ const defaultLabels = {
   invalidSessionTitle: 'Enter a title between 1 and 80 characters',
   deleteSessionWarning: 'This permanently deletes the session and all related data.',
   newSession: 'New session',
+  createSessionBranch: 'Create session branch',
+  exportSessionMarkdown: 'Export session as Markdown',
+  exportSessionJson: 'Export session as JSON',
 };
 
 function renderSidebar(overrides: Record<string, unknown> = {}) {
@@ -259,6 +262,81 @@ describe('ProjectSidebar session management', () => {
     expect(onArchiveSession).toHaveBeenCalledWith('s1');
   });
 
+  it('offers session-level branch and complete-session export actions', () => {
+    const onForkActiveSession = vi.fn();
+    const onExportSession = vi.fn();
+    renderSidebar({
+      recentSessions: [
+        makeSession({ id: 's1', title: 'Session actions', activeDocumentId: 'doc-active' }),
+      ],
+      onForkActiveSession,
+      onExportSession,
+      sessionStatus: 'active',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manage session: Session actions' }));
+    const menu = screen.getByRole('menu');
+
+    fireEvent.click(
+      within(menu).getByRole('menuitem', { name: defaultLabels.createSessionBranch }),
+    );
+    expect(onForkActiveSession).toHaveBeenCalledWith('s1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manage session: Session actions' }));
+    fireEvent.click(
+      within(screen.getByRole('menu')).getByRole('menuitem', {
+        name: defaultLabels.exportSessionMarkdown,
+      }),
+    );
+    expect(onExportSession).toHaveBeenCalledWith('s1', 'markdown');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manage session: Session actions' }));
+    fireEvent.click(
+      within(screen.getByRole('menu')).getByRole('menuitem', {
+        name: defaultLabels.exportSessionJson,
+      }),
+    );
+    expect(onExportSession).toHaveBeenCalledWith('s1', 'json');
+  });
+
+  it('keeps archived session exports available while leaving session branches unavailable', () => {
+    renderSidebar({
+      recentSessions: [
+        makeSession({
+          id: 's1',
+          title: 'Archived export',
+          status: 'archived',
+          activeDocumentId: 'doc-active',
+        }),
+      ],
+      sessionStatus: 'archived',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manage session: Archived export' }));
+    const menu = screen.getByRole('menu');
+    expect(
+      within(menu).queryByRole('menuitem', { name: defaultLabels.createSessionBranch }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(menu).getByRole('menuitem', { name: defaultLabels.exportSessionMarkdown }),
+    ).toBeEnabled();
+    expect(
+      within(menu).getByRole('menuitem', { name: defaultLabels.exportSessionJson }),
+    ).toBeEnabled();
+  });
+
+  it('keeps the session delete entry visually neutral until confirmation', () => {
+    renderSidebar({
+      recentSessions: [makeSession({ id: 's1', title: 'Neutral delete' })],
+      sessionStatus: 'active',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manage session: Neutral delete' }));
+    const deleteItem = screen.getByRole('menuitem', { name: 'Delete' });
+    expect(deleteItem).not.toHaveAttribute('data-variant', 'danger');
+    expect(within(deleteItem).queryByText('delete_outline')).not.toBeInTheDocument();
+  });
+
   it('restores an archived session instead of offering archive', () => {
     const onRestoreSession = vi.fn();
     renderSidebar({
@@ -381,6 +459,17 @@ describe('ProjectSidebar session management', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Manage session: Running session' }));
     expect(screen.getByRole('menuitem', { name: 'Archive' })).toBeDisabled();
     expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeDisabled();
+  });
+});
+
+describe('ProjectSidebar layout zones', () => {
+  it('keeps the action, project tree, recent list, and language footer as four direct zones', () => {
+    const { container } = renderSidebar({ recentSessions: [] });
+    const sidebar = container.querySelector('aside');
+
+    expect(
+      Array.from(sidebar?.children ?? []).slice(0, 4).map((child) => child.getAttribute('data-sidebar-zone')),
+    ).toEqual(['directory-action', 'project-tree', 'recent-sessions', 'language-footer']);
   });
 });
 

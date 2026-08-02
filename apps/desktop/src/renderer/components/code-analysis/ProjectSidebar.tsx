@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import type { AnalysisSession, AnalysisSessionStatus } from '@ai-reader/shared';
+import type { AnalysisExportFormat, AnalysisSession, AnalysisSessionStatus } from '@ai-reader/shared';
 
 import styles from './CodeAnalysisComponents.module.css';
 
@@ -51,6 +51,9 @@ interface ProjectSidebarProps {
     invalidSessionTitle?: string;
     deleteSessionWarning?: string;
     newSession?: string;
+    createSessionBranch?: string;
+    exportSessionMarkdown?: string;
+    exportSessionJson?: string;
   };
   onSelectDirectory: () => void;
   onToggleProject: (project: SidebarProject) => void;
@@ -69,6 +72,8 @@ interface ProjectSidebarProps {
   onArchiveSession?: (sessionId: string) => void;
   onRestoreSession?: (sessionId: string) => void;
   onDeleteSession?: (sessionId: string) => void;
+  onForkActiveSession?: (sessionId: string) => void;
+  onExportSession?: (sessionId: string, format: AnalysisExportFormat) => void;
   onCreateSession?: (projectId: string | null) => void;
   sessionActionsDisabled?: boolean;
 }
@@ -171,6 +176,8 @@ export function ProjectSidebar({
   onArchiveSession,
   onRestoreSession,
   onDeleteSession,
+  onForkActiveSession,
+  onExportSession,
   onCreateSession,
   sessionActionsDisabled = false,
 }: ProjectSidebarProps) {
@@ -376,14 +383,22 @@ export function ProjectSidebar({
 
   return (
     <aside className={styles.projectSidebar}>
-      <button className={styles.primaryAction} type="button" onClick={onSelectDirectory}>
+      <button
+        className={styles.primaryAction}
+        data-sidebar-zone="directory-action"
+        type="button"
+        onClick={onSelectDirectory}
+      >
         <span className="material-symbols-rounded" aria-hidden="true">
           create_new_folder
         </span>
         <span>{labels.selectDirectory}</span>
       </button>
 
-      <section className={`${styles.sidebarSection} ${styles.projectTreeSection}`}>
+      <section
+        className={`${styles.sidebarSection} ${styles.projectTreeSection}`}
+        data-sidebar-zone="project-tree"
+      >
         <div className={styles.sidebarSectionHeader}>
           <h2>{labels.projects}</h2>
           {hasSessions ? (
@@ -544,7 +559,10 @@ export function ProjectSidebar({
         </div>
       </section>
 
-      <section className={styles.sidebarSection}>
+      <section
+        className={`${styles.sidebarSection} ${styles.recentSessionsSection}`}
+        data-sidebar-zone="recent-sessions"
+      >
         <h2>{labels.recentConversations}</h2>
         <div className={styles.sidebarList}>
           {hasSessions ? (
@@ -565,7 +583,7 @@ export function ProjectSidebar({
         </div>
       </section>
 
-      <div className={styles.sidebarFooter}>
+      <div className={styles.sidebarFooter} data-sidebar-zone="language-footer">
         <label className={styles.languageControl}>
           <span>{labels.language}</span>
           <select
@@ -609,6 +627,22 @@ export function ProjectSidebar({
               >
                 {labels.archiveSession ?? 'Archive'}
               </button>
+              <button
+                type="button"
+                role="menuitem"
+                aria-label={labels.createSessionBranch ?? 'Create session branch'}
+                title={labels.createSessionBranch ?? 'Create session branch'}
+                disabled={
+                  !sessionMenu.session.activeDocumentId ||
+                  (sessionActionsDisabled && sessionMenu.session.id === selectedSessionId)
+                }
+                onClick={() => {
+                  onForkActiveSession?.(sessionMenu.session.id);
+                  setSessionMenu(null);
+                }}
+              >
+                {labels.createSessionBranch ?? 'Create session branch'}
+              </button>
             </>
           ) : (
             <button
@@ -620,12 +654,35 @@ export function ProjectSidebar({
               }}
             >
               {labels.restoreSession ?? 'Restore'}
-            </button>
+              </button>
           )}
           <button
             type="button"
             role="menuitem"
-            data-variant="danger"
+            aria-label={labels.exportSessionMarkdown ?? 'Export session as Markdown'}
+            title={labels.exportSessionMarkdown ?? 'Export session as Markdown'}
+            onClick={() => {
+              onExportSession?.(sessionMenu.session.id, 'markdown');
+              setSessionMenu(null);
+            }}
+          >
+            {labels.exportSessionMarkdown ?? 'Export session as Markdown'}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            aria-label={labels.exportSessionJson ?? 'Export session as JSON'}
+            title={labels.exportSessionJson ?? 'Export session as JSON'}
+            onClick={() => {
+              onExportSession?.(sessionMenu.session.id, 'json');
+              setSessionMenu(null);
+            }}
+          >
+            {labels.exportSessionJson ?? 'Export session as JSON'}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
             disabled={
               sessionActionsDisabled &&
               sessionMenu.session.id === selectedSessionId
@@ -635,8 +692,7 @@ export function ProjectSidebar({
               setSessionMenu(null);
             }}
           >
-            <span className="material-symbols-rounded" aria-hidden="true">delete_outline</span>
-            <span>{labels.deleteSession ?? 'Delete'}</span>
+            {labels.deleteSession ?? 'Delete'}
           </button>
         </div>
       ) : null}
