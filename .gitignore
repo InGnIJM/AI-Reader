@@ -32,3 +32,6 @@ pnpm-debug.log*
 
 # Electron
 out/
+
+# Superpowers scratch (brainstorm state & design drafts)
+.superpowers/
