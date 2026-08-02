@@ -41,6 +41,36 @@ export interface AireaderCodeAnalysisExport {
   exportedAt: string;
 }
 
+export interface AireaderCodeAnalysisSessionExport {
+  schemaVersion: 1;
+  type: 'code-analysis-session';
+  session: {
+    id: string;
+    title: string;
+    status: string;
+    activeBranchId: string | null;
+    activeDocumentId: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+  branches: Array<{
+    id: string;
+    name: string;
+    parentBranchId: string | null;
+    forkedFromDocumentId: string | null;
+    headDocumentId: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  documents: Array<{
+    id: string;
+    branchId: string;
+    parentDocumentId: string | null;
+    export: AireaderCodeAnalysisExport;
+  }>;
+  exportedAt: string;
+}
+
 interface ExportDocumentRow {
   id: string;
   goal: string;
@@ -129,6 +159,30 @@ export class AnalysisExportService {
           format,
           defaultFileName: `${baseName}.json`,
           content: JSON.stringify(await this.exportJson(documentId), null, 2),
+        };
+      default:
+        throw new Error(`Unsupported export format: ${String(format)}`);
+    }
+  }
+
+  async exportSession(
+    sessionId: string,
+    format: AnalysisExportFormat,
+  ): Promise<AnalysisExportArtifact> {
+    const session = this.getExportSession(sessionId);
+    const baseName = this.sanitizeFileName(session.title);
+    switch (format) {
+      case 'markdown':
+        return {
+          format,
+          defaultFileName: `${baseName}.session.md`,
+          content: await this.exportSessionMarkdown(sessionId, session.title),
+        };
+      case 'json':
+        return {
+          format,
+          defaultFileName: `${baseName}.session.json`,
+          content: JSON.stringify(await this.exportSessionJson(sessionId), null, 2),
         };
       default:
         throw new Error(`Unsupported export format: ${String(format)}`);
@@ -328,6 +382,61 @@ export class AnalysisExportService {
       .get(documentId) as ExportDocumentRow | undefined;
     if (!row) throw new Error(`Analysis document not found: ${documentId}`);
     return row;
+  }
+
+  private getExportSession(sessionId: string): AireaderCodeAnalysisSessionExport['session'] {
+    const row = this.db.db
+      .prepare(
+        `SELECT id, title, status, active_branch_id AS activeBranchId,
+                active_document_id AS activeDocumentId, created_at AS createdAt, updated_at AS updatedAt
+         FROM analysis_sessions WHERE id = ?`,
+      )
+      .get(sessionId) as AireaderCodeAnalysisSessionExport['session'] | undefined;
+    if (!row) throw new Error(`Analysis session not found: ${sessionId}`);
+    return row;
+  }
+
+  private async exportSessionJson(sessionId: string): Promise<AireaderCodeAnalysisSessionExport> {
+    const session = this.getExportSession(sessionId);
+    const branches = this.db.db
+      .prepare(
+        `SELECT id, name, parent_branch_id AS parentBranchId, forked_from_document_id AS forkedFromDocumentId,
+                head_document_id AS headDocumentId, created_at AS createdAt, updated_at AS updatedAt
+         FROM analysis_branches WHERE session_id = ? ORDER BY created_at ASC`,
+      )
+      .all(sessionId) as AireaderCodeAnalysisSessionExport['branches'];
+    const documents = this.db.db
+      .prepare(
+        `SELECT id, branch_id AS branchId, parent_document_id AS parentDocumentId
+         FROM analysis_documents WHERE session_id = ? ORDER BY created_at ASC`,
+      )
+      .all(sessionId) as Array<{ id: string; branchId: string; parentDocumentId: string | null }>;
+
+    return {
+      schemaVersion: 1,
+      type: 'code-analysis-session',
+      session,
+      branches,
+      documents: await Promise.all(
+        documents.map(async (document) => ({
+          ...document,
+          export: await this.exportJson(document.id),
+        })),
+      ),
+      exportedAt: new Date().toISOString(),
+    };
+  }
+
+  private async exportSessionMarkdown(sessionId: string, sessionTitle: string): Promise<string> {
+    const documents = this.db.db
+      .prepare('SELECT id FROM analysis_documents WHERE session_id = ? ORDER BY created_at ASC')
+      .all(sessionId) as Array<{ id: string }>;
+    const sections = [`# ${sessionTitle}`];
+    for (const document of documents) {
+      const exported = await this.exportJson(document.id);
+      sections.push('', `## ${exported.analysisGoal}`, '', exported.analysisMarkdown);
+    }
+    return sections.join('\n');
   }
 
   private listAnnotations(documentId: string): AireaderCodeAnalysisExport['annotations'] {

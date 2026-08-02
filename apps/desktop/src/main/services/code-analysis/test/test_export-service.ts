@@ -244,6 +244,57 @@ describe('AnalysisExportService', () => {
     expect(parsed.sessionTitle).toBe('Startup Analysis');
   });
 
+  it('exports every document and branch in a session JSON artifact', async () => {
+    const now = new Date().toISOString();
+    db.db
+      .prepare(
+        `INSERT INTO analysis_documents
+          (id, session_id, branch_id, parent_document_id, goal, content_markdown, status, model_id, tool_call_count, created_at, updated_at)
+         VALUES ('doc-2', 'session-1', 'branch-1', 'doc-1', 'Explain shutdown', '# Shutdown', 'completed', NULL, 0, ?, ?)`,
+      )
+      .run(now, now);
+    db.db.prepare('UPDATE analysis_branches SET head_document_id = ? WHERE id = ?').run('doc-2', 'branch-1');
+
+    const artifact = await new AnalysisExportService(db).exportSession('session-1', 'json');
+    const parsed = JSON.parse(artifact.content) as {
+      type: string;
+      session: { id: string; title: string };
+      branches: Array<{ id: string }>;
+      documents: Array<{ id: string }>;
+    };
+
+    expect(artifact.defaultFileName).toBe('Startup Analysis.session.json');
+    expect(parsed.type).toBe('code-analysis-session');
+    expect(parsed.session).toMatchObject({ id: 'session-1', title: 'Startup Analysis' });
+    expect(parsed.branches).toEqual([expect.objectContaining({ id: 'branch-1' })]);
+    expect(parsed.documents.map((document) => document.id)).toEqual(['doc-1', 'doc-2']);
+  });
+
+  it('exports every document in a session Markdown artifact', async () => {
+    const now = new Date().toISOString();
+    db.db
+      .prepare(
+        `INSERT INTO analysis_documents
+          (id, session_id, branch_id, parent_document_id, goal, content_markdown, status, model_id, tool_call_count, created_at, updated_at)
+         VALUES ('doc-2', 'session-1', 'branch-1', 'doc-1', 'Explain shutdown', '# Shutdown', 'completed', NULL, 0, ?, ?)`,
+      )
+      .run(now, now);
+
+    const artifact = await new AnalysisExportService(db).exportSession('session-1', 'markdown');
+
+    expect(artifact.defaultFileName).toBe('Startup Analysis.session.md');
+    expect(artifact.content).toContain('# Startup Analysis');
+    expect(artifact.content).toContain('## Explain startup');
+    expect(artifact.content).toContain('## Explain shutdown');
+    expect(artifact.content).toContain('# Shutdown');
+  });
+
+  it('rejects unsupported session export formats', async () => {
+    await expect(
+      new AnalysisExportService(db).exportSession('session-1', 'html' as never),
+    ).rejects.toThrow('Unsupported export format: html');
+  });
+
   it('exportDocument sanitizes illegal file name characters', async () => {
     db.db.prepare("UPDATE analysis_sessions SET title = 'A/B:C*?' WHERE id = 'session-1'").run();
     const service = new AnalysisExportService(db);
