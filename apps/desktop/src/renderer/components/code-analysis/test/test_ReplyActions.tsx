@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -43,5 +43,35 @@ describe('ReplyActions', () => {
     for (const label of [labels.copy, labels.checkout, labels.fork, labels.export]) {
       expect(screen.getAllByRole('button', { name: label }).at(-1)).toBeDisabled();
     }
+  });
+
+  it('keeps copy and export available when only mutable reply actions are disabled', async () => {
+    const user = userEvent.setup();
+    const onCopy = vi.fn();
+    const onExport = vi.fn();
+
+    const { container } = render(
+      <ReplyActions
+        disabledActions={{ checkout: true, fork: true }}
+        labels={labels}
+        onCopy={onCopy}
+        onCheckout={vi.fn()}
+        onFork={vi.fn()}
+        onExport={onExport}
+      />,
+    );
+
+    const actions = within(container);
+    expect(actions.getByRole('button', { name: labels.copy })).toBeEnabled();
+    expect(actions.getByRole('button', { name: labels.checkout })).toBeDisabled();
+    expect(actions.getByRole('button', { name: labels.fork })).toBeDisabled();
+    expect(actions.getByRole('button', { name: labels.export })).toBeEnabled();
+
+    await user.click(actions.getByRole('button', { name: labels.copy }));
+    await user.click(actions.getByRole('button', { name: labels.export }));
+    await user.click(actions.getByRole('menuitem', { name: labels.exportMarkdown }));
+
+    expect(onCopy).toHaveBeenCalledOnce();
+    expect(onExport).toHaveBeenCalledWith('markdown');
   });
 });

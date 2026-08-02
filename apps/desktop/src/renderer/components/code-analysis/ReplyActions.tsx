@@ -6,6 +6,7 @@ import styles from './CodeAnalysisComponents.module.css';
 
 export interface ReplyActionsProps {
   disabled?: boolean;
+  disabledActions?: Partial<Record<'copy' | 'checkout' | 'fork' | 'export', boolean>>;
   labels: {
     copy: string;
     checkout: string;
@@ -20,7 +21,15 @@ export interface ReplyActionsProps {
   onExport: (format: AnalysisExportFormat) => void;
 }
 
-export function ReplyActions({ disabled = false, labels, onCopy, onCheckout, onFork, onExport }: ReplyActionsProps) {
+export function ReplyActions({
+  disabled = false,
+  disabledActions,
+  labels,
+  onCopy,
+  onCheckout,
+  onFork,
+  onExport,
+}: ReplyActionsProps) {
   const [exportOpen, setExportOpen] = useState(false);
 
   const exportReply = (format: AnalysisExportFormat) => {
@@ -30,17 +39,17 @@ export function ReplyActions({ disabled = false, labels, onCopy, onCheckout, onF
 
   return (
     <div className={styles.replyActions} aria-label="Reply actions">
-      <button type="button" className={styles.replyActionButton} disabled={disabled} onClick={onCopy} aria-label={labels.copy} title={labels.copy}>
+      <button type="button" className={styles.replyActionButton} disabled={disabled || disabledActions?.copy} onClick={onCopy} aria-label={labels.copy} title={labels.copy}>
         <span className="material-symbols-rounded" aria-hidden="true">content_copy</span>
       </button>
-      <button type="button" className={styles.replyActionButton} disabled={disabled} onClick={onCheckout} aria-label={labels.checkout} title={labels.checkout}>
+      <button type="button" className={styles.replyActionButton} disabled={disabled || disabledActions?.checkout} onClick={onCheckout} aria-label={labels.checkout} title={labels.checkout}>
         <span className="material-symbols-rounded" aria-hidden="true">history</span>
       </button>
-      <button type="button" className={styles.replyActionButton} disabled={disabled} onClick={onFork} aria-label={labels.fork} title={labels.fork}>
+      <button type="button" className={styles.replyActionButton} disabled={disabled || disabledActions?.fork} onClick={onFork} aria-label={labels.fork} title={labels.fork}>
         <span className="material-symbols-rounded" aria-hidden="true">fork_right</span>
       </button>
       <div className={styles.replyExport}>
-        <button type="button" className={styles.replyActionButton} disabled={disabled} onClick={() => setExportOpen((open) => !open)} aria-label={labels.export} title={labels.export} aria-haspopup="menu" aria-expanded={exportOpen}>
+        <button type="button" className={styles.replyActionButton} disabled={disabled || disabledActions?.export} onClick={() => setExportOpen((open) => !open)} aria-label={labels.export} title={labels.export} aria-haspopup="menu" aria-expanded={exportOpen}>
           <span className="material-symbols-rounded" aria-hidden="true">download</span>
         </button>
         {exportOpen ? (
