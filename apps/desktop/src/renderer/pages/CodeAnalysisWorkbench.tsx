@@ -663,6 +663,34 @@ export default function CodeAnalysisWorkbench() {
     }
   }, [addSessionToVisibleCollections, isForkingSession, isRunning, projects, selectSession, session]);
 
+  const forkActiveSession = useCallback(async (sessionId: string) => {
+    if (isRunning || isForkingSession) return;
+    try {
+      setIsForkingSession(true);
+      const forkedSession = await window.api.codeAnalysis.forkActiveSession(sessionId);
+      addSessionToVisibleCollections(forkedSession);
+      if (forkedSession.projectId) {
+        setProjects((current) =>
+          current.map((candidate) =>
+            candidate.id === forkedSession.projectId
+              ? { ...candidate, conversationCount: (candidate.conversationCount ?? 0) + 1 }
+              : candidate,
+          ),
+        );
+      }
+      setProject(
+        forkedSession.projectId
+          ? projects.find((candidate) => candidate.id === forkedSession.projectId) ?? null
+          : null,
+      );
+      await selectSession(forkedSession);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Unable to create session branch');
+    } finally {
+      setIsForkingSession(false);
+    }
+  }, [addSessionToVisibleCollections, isForkingSession, isRunning, projects, selectSession]);
+
   const clearDocumentState = useCallback(() => {
     setDocument(null);
     setMessages([]);
@@ -1114,6 +1142,27 @@ export default function CodeAnalysisWorkbench() {
     [text.exportFailed, text.exportedTo],
   );
 
+  const handleExportSession = useCallback(
+    async (sessionId: string, format: AnalysisExportFormat) => {
+      try {
+        const artifact = await window.api.codeAnalysis.exportSession(sessionId, format);
+        const saved = await window.api.dialog.saveFile({
+          defaultFileName: artifact.defaultFileName,
+          content: artifact.content,
+          filters:
+            format === 'markdown'
+              ? [{ name: 'Markdown', extensions: ['md', 'markdown'] }]
+              : [{ name: 'JSON', extensions: ['json'] }],
+        });
+        if (saved.canceled) return;
+        setStatus(text.exportedTo(saved.filePath ?? ''));
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : text.exportFailed);
+      }
+    },
+    [text.exportFailed, text.exportedTo],
+  );
+
   const activeBranch = branches.find((branch) => branch.id === activeBranchId);
   const contextBreadcrumbs = [
     {
@@ -1210,6 +1259,8 @@ export default function CodeAnalysisWorkbench() {
           onArchiveSession={(sessionId) => void archiveSession(sessionId)}
           onRestoreSession={(sessionId) => void restoreSession(sessionId)}
           onDeleteSession={(sessionId) => void deleteSession(sessionId)}
+          onForkActiveSession={(sessionId) => void forkActiveSession(sessionId)}
+          onExportSession={(sessionId, format) => void handleExportSession(sessionId, format)}
         />
       </section>
 
@@ -1309,17 +1360,21 @@ export default function CodeAnalysisWorkbench() {
                         visibilityRoot={readerViewport}
                       />
                     )}
+                    {message.state === 'complete' && message.documentId ? (
+                      <ReplyActions
+                        disabledActions={{
+                          checkout: isRunning || session?.status === 'archived',
+                          fork:
+                            isRunning || isForkingSession || session?.status === 'archived',
+                        }}
+                        labels={{ copy: '复制', checkout: '回退', fork: text.branch, export: '导出', exportMarkdown: text.exportMarkdown, exportJson: text.exportJson }}
+                        onCopy={() => void navigator.clipboard?.writeText(message.content)}
+                        onCheckout={() => { const turn = turns.find((item) => item.id === message.documentId); if (turn) void checkoutTurn(turn); }}
+                        onFork={() => void forkSession(message.documentId!)}
+                        onExport={(format) => void handleExport(message.documentId!, format)}
+                      />
+                    ) : null}
                   </article>
-                  {message.state === 'complete' && message.documentId ? (
-                    <ReplyActions
-                      disabled={isRunning || session?.status === 'archived'}
-                      labels={{ copy: '复制', checkout: '回退', fork: text.branch, export: '导出', exportMarkdown: text.exportMarkdown, exportJson: text.exportJson }}
-                      onCopy={() => void navigator.clipboard?.writeText(message.content)}
-                      onCheckout={() => { const turn = turns.find((item) => item.id === message.documentId); if (turn) void checkoutTurn(turn); }}
-                      onFork={() => void forkSession(message.documentId!)}
-                      onExport={(format) => void handleExport(message.documentId!, format)}
-                    />
-                  ) : null}
                 </div>
               ),
             )

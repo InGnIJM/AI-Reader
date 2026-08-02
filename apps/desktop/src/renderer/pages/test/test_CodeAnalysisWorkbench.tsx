@@ -49,8 +49,13 @@ describe('CodeAnalysisWorkbench', () => {
                 format: 'json',
                 defaultFileName: 'turn-1.json',
                 content: JSON.stringify({ type: 'code-analysis-document' }),
-              },
+            },
         ),
+        exportSession: vi.fn(async (_sessionId: string, format: any) => ({
+          format,
+          defaultFileName: `session.${format === 'markdown' ? 'md' : 'json'}`,
+          content: '# Session export',
+        })),
 
         // Session management
         listSessions: vi.fn(async () => []),
@@ -90,6 +95,18 @@ describe('CodeAnalysisWorkbench', () => {
           updatedAt: new Date().toISOString(),
         })),
         deleteSession: vi.fn(async () => ({ cleanupPending: false })),
+        forkActiveSession: vi.fn(async (sessionId: string) => ({
+          id: 'forked-session',
+          title: 'Forked session',
+          status: 'active',
+          projectId: null,
+          activeBranchId: 'forked-branch',
+          activeDocumentId: 'forked-document',
+          archivedAt: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          forkedFrom: sessionId,
+        })),
         forkSession: vi.fn(async () => ({
           id: 'session-fork',
           title: 'Forked session',
@@ -200,6 +217,52 @@ describe('CodeAnalysisWorkbench', () => {
       expect(window.api.codeAnalysis.exportDocument).toHaveBeenCalledWith('turn-1', 'json'),
     );
     await waitFor(() => expect(screen.getByText(/Exported to/)).toBeInTheDocument());
+  });
+
+  it('renders completed article actions inside the assistant article', async () => {
+    const user = userEvent.setup();
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
+
+    await user.click(screen.getByRole('button', { name: /select directory/i }));
+    await user.type(screen.getByLabelText(/analysis goal/i), 'Explain startup');
+    await user.keyboard('{Enter}');
+
+    const article = await screen.findByRole('article', { name: 'Assistant' });
+    expect(within(article).getByRole('button', { name: '复制' })).toBeInTheDocument();
+    expect(within(article).getByRole('button', { name: '导出' })).toBeInTheDocument();
+  });
+
+  it('routes sidebar session branch and export actions through session-level APIs', async () => {
+    (window.api.codeAnalysis.listRecentSessions as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        id: 'session-actions',
+        projectId: null,
+        title: 'Session actions',
+        status: 'active',
+        activeBranchId: 'branch-actions',
+        activeDocumentId: 'doc-actions',
+        archivedAt: null,
+        createdAt: '2026-08-02T00:00:00.000Z',
+        updatedAt: '2026-08-02T00:00:00.000Z',
+      },
+    ]);
+    const user = userEvent.setup();
+    render(<ThemeProvider><CodeAnalysisWorkbench /></ThemeProvider>);
+
+    await user.click(await screen.findByRole('button', { name: 'Manage session: Session actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Create session branch' }));
+    await waitFor(() =>
+      expect(window.api.codeAnalysis.forkActiveSession).toHaveBeenCalledWith('session-actions'),
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Manage session: Session actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Export session as Markdown' }));
+    await waitFor(() =>
+      expect(window.api.codeAnalysis.exportSession).toHaveBeenCalledWith('session-actions', 'markdown'),
+    );
+    expect(window.api.dialog.saveFile).toHaveBeenCalledWith(
+      expect.objectContaining({ defaultFileName: 'session.md' }),
+    );
   });
 
   it('shows global recent conversations and collapsible project folders', async () => {

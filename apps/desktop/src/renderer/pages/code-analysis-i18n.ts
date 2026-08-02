@@ -68,6 +68,9 @@ export const codeAnalysisText = {
     cancel: '取消',
     deleteAnnotationWarning: '此操作会永久删除该批注及其全部讨论内容。',
     deleteSessionWarning: '此操作会永久删除该会话及其全部相关数据。',
+    createSessionBranch: '创建会话分支',
+    exportSessionMarkdown: '导出会话 Markdown',
+    exportSessionJson: '导出会话 JSON',
     archivedSessionReadOnly: '已归档会话为只读状态，恢复后才能继续对话。',
   },
   'en-US': {
@@ -136,6 +139,9 @@ export const codeAnalysisText = {
     cancel: 'Cancel',
     deleteAnnotationWarning: 'This permanently deletes the annotation and its discussion.',
     deleteSessionWarning: 'This permanently deletes the session and all related data.',
+    createSessionBranch: 'Create session branch',
+    exportSessionMarkdown: 'Export session as Markdown',
+    exportSessionJson: 'Export session as JSON',
     archivedSessionReadOnly: 'Archived sessions are read-only. Restore this session to continue.',
   },
 } as const;
