@@ -188,12 +188,14 @@ describe('CodeAnalysisWorkbench', () => {
     await waitFor(() => expect(screen.getByText('Turn Result')).toBeInTheDocument());
     expect(screen.getByText(/listFiles/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /export md/i }));
+    await user.click(screen.getByRole('button', { name: '导出' }));
+    await user.click(screen.getByRole('menuitem', { name: /export md/i }));
     await waitFor(() =>
       expect(window.api.codeAnalysis.exportDocument).toHaveBeenCalledWith('turn-1', 'markdown'),
     );
     expect(window.api.dialog.saveFile).toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: /export json/i }));
+    await user.click(screen.getByRole('button', { name: '导出' }));
+    await user.click(screen.getByRole('menuitem', { name: /export json/i }));
     await waitFor(() =>
       expect(window.api.codeAnalysis.exportDocument).toHaveBeenCalledWith('turn-1', 'json'),
     );

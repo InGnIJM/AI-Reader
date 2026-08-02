@@ -1275,16 +1275,6 @@ export default function CodeAnalysisWorkbench() {
                   <article className={styles.userMessage} aria-label={text.you}>
                     {message.content}
                   </article>
-                  {message.state === 'complete' && message.documentId ? (
-                    <ReplyActions
-                      disabled={isRunning || session?.status === 'archived'}
-                      labels={{ copy: '复制', checkout: '回退', fork: text.branch, export: '导出', exportMarkdown: text.exportMarkdown, exportJson: text.exportJson }}
-                      onCopy={() => void navigator.clipboard?.writeText(message.content)}
-                      onCheckout={() => { const turn = turns.find((item) => item.id === message.documentId); if (turn) void checkoutTurn(turn); }}
-                      onFork={() => void forkSession(message.documentId!)}
-                      onExport={(format) => void handleExport(message.documentId!, format)}
-                    />
-                  ) : null}
                 </div>
               ) : (
                 <div className={`${styles.messageRow} ${styles.assistantMessageRow}`} key={message.id}>
@@ -1320,6 +1310,16 @@ export default function CodeAnalysisWorkbench() {
                       />
                     )}
                   </article>
+                  {message.state === 'complete' && message.documentId ? (
+                    <ReplyActions
+                      disabled={isRunning || session?.status === 'archived'}
+                      labels={{ copy: '复制', checkout: '回退', fork: text.branch, export: '导出', exportMarkdown: text.exportMarkdown, exportJson: text.exportJson }}
+                      onCopy={() => void navigator.clipboard?.writeText(message.content)}
+                      onCheckout={() => { const turn = turns.find((item) => item.id === message.documentId); if (turn) void checkoutTurn(turn); }}
+                      onFork={() => void forkSession(message.documentId!)}
+                      onExport={(format) => void handleExport(message.documentId!, format)}
+                    />
+                  ) : null}
                 </div>
               ),
             )
