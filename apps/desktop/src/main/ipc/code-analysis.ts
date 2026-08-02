@@ -186,6 +186,14 @@ export function registerCodeAnalysisHandlers(deps: CodeAnalysisHandlerDeps): voi
   );
 
   ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_EXPORT_SESSION,
+    async (_event, sessionId: string, format: AnalysisExportFormat): Promise<IPCResult<AnalysisExportArtifact>> =>
+      handle('codeAnalysis:exportSession', () =>
+        deps.analysisExportService.exportSession(sessionId, format),
+      ),
+  );
+
+  ipcMain.handle(
     IPC_CHANNELS.CODE_ANALYSIS_IMPORT_DOCUMENT,
     async (_event, payload: unknown): Promise<IPCResult<CodeAnalysisDocumentData>> =>
       handle('codeAnalysis:importDocument', () => deps.analysisExportService.importDocument(payload)),
@@ -249,6 +257,12 @@ export function registerCodeAnalysisHandlers(deps: CodeAnalysisHandlerDeps): voi
       handle('codeAnalysis:forkSession', () =>
         deps.sessionService.forkAsIndependentSession(payload),
       ),
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODE_ANALYSIS_FORK_ACTIVE_SESSION,
+    async (_event, sessionId: string): Promise<IPCResult<AnalysisSession>> =>
+      handle('codeAnalysis:forkActiveSession', () => deps.sessionService.forkActiveSession(sessionId)),
   );
 
   // ── Turn and branch handlers ────────────────────────────────────────────────
